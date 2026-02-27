@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 
 public class Player {
+    private String nombre;
     private float xPos;
     private float yPos;
     private boolean invincible;
@@ -16,18 +17,20 @@ public class Player {
     public Player() {
     }
 
-    public Player(float xPos, float yPos, boolean invincible, int lives) {
+    public Player(String nombre, float xPos, float yPos, boolean invincible, int lives) {
+        this.nombre = nombre;
         this.xPos = xPos;
         this.yPos = yPos;
         this.invincible = invincible;
         this.lives = lives;
     }
 
-    public Player(Context context, float xPos, float yPos, boolean invincible, int lives) {
-        this.xPos = xPos;
-        this.yPos = yPos;
-        this.invincible = invincible;
-        this.lives = lives;
+    public String getNombre() {
+        return nombre;
+    }
+
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
     }
 
     public float getXPos() {

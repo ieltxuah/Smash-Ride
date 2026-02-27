@@ -6,11 +6,12 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+
+import java.util.List;
 
 public class GameView extends SurfaceView implements Runnable {
     private GameOverListener gameOverListener;
@@ -18,7 +19,7 @@ public class GameView extends SurfaceView implements Runnable {
     private boolean isPlaying;
     private Paint paint;
     private SurfaceHolder surfaceHolder;
-    private Player player;
+    private List<Player> players; // List to hold players
     private Joystick joystick;
     private GameArea gameArea;
 
@@ -26,31 +27,21 @@ public class GameView extends SurfaceView implements Runnable {
     private float centerY;
     private final float radius = 500; // Fixed radius
 
-    private static final int MAX_TOUCHES = 2;
-    private boolean[] isTouchActive = new boolean[MAX_TOUCHES];
-    private int[] touchPointers = new int[MAX_TOUCHES];
-    private long secondFingerDownTime;
-    private boolean isReducingSpeed = false;
-    private int collisionCount = 0;
-
     private static final long REDUCTION_DURATION = 750; // in milliseconds
     private static final int REDUCTION_STEPS = 30;
-    private float initialSpeed;
-    private float speedReductionStep;
-    private long reductionStartTime;
-    private Handler uiHandler;
+    public Handler uiHandler;
 
-    public GameView(Context context) {
+    public GameView(Context context, List<Player> players) {
         super(context);
-        initialize(context);
+        this.players = players; // Set player list
+        initialize();
     }
 
-    private void initialize(Context context) {
+    private void initialize() {
         surfaceHolder = getHolder();
         paint = new Paint();
         paint.setColor(Color.GRAY);
         isPlaying = false;
-        player = new Player(getWidth() / 2, getHeight() / 2, false, 5);
         joystick = new Joystick();
         gameArea = new GameArea(centerX, centerY, radius);
         uiHandler = new Handler(Looper.getMainLooper());
@@ -73,7 +64,9 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void update() {
-        player.update();
+        for (Player player : players) {
+            player.update();
+        }
         checkCollision();
     }
 
@@ -84,7 +77,9 @@ public class GameView extends SurfaceView implements Runnable {
                 canvas = surfaceHolder.lockCanvas();
                 canvas.drawColor(Color.WHITE);
                 gameArea.draw(canvas);
-                player.draw(canvas);
+                for (Player player : players) {
+                    player.draw(canvas);
+                }
                 joystick.draw(canvas);
             }
         } finally {
@@ -95,17 +90,14 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void checkCollision() {
-        float carCenterX = player.getXPos() + 25;
-        float carCenterY = player.getYPos() + 25;
+        Player firstPlayer = players.get(0); // Only check collision for the first player
+        float carCenterX = firstPlayer.getXPos() + 25;
+        float carCenterY = firstPlayer.getYPos() + 25;
 
         float distanceFromCenter = (float) Math.sqrt(Math.pow(carCenterX - centerX, 2) + Math.pow(carCenterY - centerY, 2));
         if (distanceFromCenter >= radius) {
-            player.resetPosition(centerX, centerY);
-            collisionCount++;
-
-            if (collisionCount >= 5 && gameOverListener != null) {
-                uiHandler.post(gameOverListener::onGameOver);
-            }
+            firstPlayer.resetPosition(centerX, centerY);
+            // Alternatively, you can increment a collision counter for the first player here
         }
     }
 
@@ -155,17 +147,7 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void handleTouchDown(MotionEvent event, int pointerIndex, int pointerId) {
-        if (!isTouchActive[0]) {
-            joystick.touchDown(event.getX(pointerIndex), event.getY(pointerIndex));
-            touchPointers[0] = pointerId; // Save pointer ID
-            isTouchActive[0] = true;
-        } else if (!isTouchActive[1]) {
-            touchPointers[1] = pointerId; // Save pointer ID for second finger
-            secondFingerDownTime = SystemClock.elapsedRealtime();
-            isReducingSpeed = true;
-            startSpeedReduction();
-            isTouchActive[1] = true;
-        }
+        joystick.touchDown(event.getX(pointerIndex), event.getY(pointerIndex));
     }
 
     private void handleTouchMove(MotionEvent event) {
@@ -174,76 +156,17 @@ public class GameView extends SurfaceView implements Runnable {
             float x = event.getX(i);
             float y = event.getY(i);
 
-            // Check if the first touch is active
-            if (id == touchPointers[0]) {
+            // Control only the first player
+            if (id == 0) {
                 joystick.touchMove(x, y);
-                if (isReducingSpeed)
-                    reduceSpeedProgressively();
-                else
-                    player.setSpeed(joystick.getSpeed());
-                Log.d("joystick.getAngle(player.getAngle())", "handleTouchMove: "+joystick.getAngle(player.getAngle()));
-                player.setAngle(joystick.getAngle(player.getAngle()));
-            }
-            // Check if the second touch is active
-            else if (id == touchPointers[1]) {
-                if (!isReducingSpeed) {
-                    isReducingSpeed = true;
-                    startSpeedReduction();
-                } else
-                    reduceSpeedProgressively();
+                players.get(0).setSpeed(joystick.getSpeed());
+                players.get(0).setAngle(joystick.getAngle(players.get(0).getAngle()));
             }
         }
     }
 
     private void handleTouchUp() {
-        if (isTouchActive[1]) {
-            processSecondTouchUp();
-        } else {
-            joystick.touchUp();
-            isTouchActive[0] = false;
-            if (!isReducingSpeed) {
-                player.setSpeed(0);
-            }
-        }
-    }
-
-    private void processSecondTouchUp() {
-        long elapsedTime = SystemClock.elapsedRealtime() - secondFingerDownTime;
-        float impulseDuration = Math.min(elapsedTime / 300f, 1f);
-        activateImpulse(impulseDuration);
-        isReducingSpeed = false;
-        isTouchActive[1] = false;
-    }
-
-    private void startSpeedReduction() {
-        initialSpeed = player.getSpeed();
-        speedReductionStep = initialSpeed / REDUCTION_STEPS;
-        reductionStartTime = SystemClock.elapsedRealtime();
-        reduceSpeedProgressively();
-    }
-
-    private void reduceSpeedProgressively() {
-        uiHandler.postDelayed(() -> {
-            long elapsedTime = SystemClock.elapsedRealtime() - reductionStartTime;
-            float proportion = (float) elapsedTime / REDUCTION_DURATION;
-
-            if (proportion < 1) {
-                float newSpeed = Math.max(0, initialSpeed - (speedReductionStep * (elapsedTime / (REDUCTION_DURATION / REDUCTION_STEPS))));
-                player.setSpeed(newSpeed);
-                reduceSpeedProgressively();
-            } else {
-                player.setSpeed(0);
-                isReducingSpeed = false;
-            }
-        }, REDUCTION_DURATION / REDUCTION_STEPS);
-    }
-
-    private void activateImpulse(float duration) {
-        final float impulseSpeed = 20f;
-        player.setSpeed(impulseSpeed);
-
-        uiHandler.postDelayed(() -> {
-            player.setSpeed(joystick.getSpeed());
-        }, (long) (duration * 300));
+        joystick.touchUp(); // Release joystick controls
+        players.get(0).setSpeed(0); // Stop the first player's speed
     }
 }
