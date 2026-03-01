@@ -15,6 +15,9 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     private View loadingLayout; // Reference to the loading layout
     private static final long LOADER_DELAY_MS = 20000; // 20 seconds
     private Handler handler;
+    private float centerX;
+    private float centerY;
+    private float radius;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,12 +33,22 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     }
 
     private void initializePlayers() {
-        // Create players in a separate thread
         new Thread(() -> {
-            // Simulate player creation
+            // Simulate game area dimensions
+            centerX = getResources().getDisplayMetrics().widthPixels / 2;
+            centerY = getResources().getDisplayMetrics().heightPixels / 2;
+            radius = Math.min(centerX, centerY) - 100; // Adjust radius as needed
+
+            // Define initial positions within the game area
+            int[][] positions = {
+                    { (int) centerX, (int) (centerY - radius) }, // North
+                    { (int) centerX, (int) (centerY + radius) }, // South
+                    { (int) (centerX + radius), (int) centerY }, // East
+                    { (int) (centerX - radius), (int) centerY }  // West
+            };
+
             for (int i = 0; i < 4; i++) {
-                players.add(new Player("Player " + (i + 1), getResources().getDisplayMetrics().widthPixels / 2,
-                        getResources().getDisplayMetrics().heightPixels / 2, false, 5));
+                players.add(new Player("Player " + (i + 1), positions[i][0], positions[i][1], false, 5));
                 try {
                     Thread.sleep(500); // Simulate delay for player creation
                 } catch (InterruptedException e) {
@@ -43,7 +56,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
                 }
             }
 
-            // Proceed to finish loading after 20 seconds
+            // Proceed to finish loading after delay
             handler.postDelayed(this::finishLoading, LOADER_DELAY_MS);
         }).start();
     }

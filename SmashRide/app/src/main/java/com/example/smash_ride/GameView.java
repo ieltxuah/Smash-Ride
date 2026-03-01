@@ -19,21 +19,17 @@ public class GameView extends SurfaceView implements Runnable {
     private boolean isPlaying;
     private Paint paint;
     private SurfaceHolder surfaceHolder;
-    private List<Player> players; // List to hold players
+    private List<Player> players;
     private Joystick joystick;
     private GameArea gameArea;
 
     private float centerX;
     private float centerY;
-    private final float radius = 500; // Fixed radius
-
-    private static final long REDUCTION_DURATION = 750; // in milliseconds
-    private static final int REDUCTION_STEPS = 30;
-    public Handler uiHandler;
+    private float radius;
 
     public GameView(Context context, List<Player> players) {
         super(context);
-        this.players = players; // Set player list
+        this.players = players;
         initialize();
     }
 
@@ -42,9 +38,13 @@ public class GameView extends SurfaceView implements Runnable {
         paint = new Paint();
         paint.setColor(Color.GRAY);
         isPlaying = false;
+
         joystick = new Joystick();
+
+        centerX = getWidth() / 2;
+        centerY = getHeight() / 2;
+        radius = 500; // Ajusta el radio según sea necesario
         gameArea = new GameArea(centerX, centerY, radius);
-        uiHandler = new Handler(Looper.getMainLooper());
     }
 
     @Override
@@ -52,22 +52,28 @@ public class GameView extends SurfaceView implements Runnable {
         super.onSizeChanged(w, h, oldw, oldh);
         centerX = w / 2;
         centerY = h / 2;
+
         gameArea = new GameArea(centerX, centerY, radius);
     }
 
     @Override
     public void run() {
         while (isPlaying) {
-            update();
+            update(); // Solo actualiza Player 1
             draw();
         }
     }
 
     private void update() {
-        for (Player player : players) {
-            player.update();
-        }
-        checkCollision();
+        Player player1 = players.get(0); // Solo controla el jugador 1
+        player1.setSpeed(joystick.getSpeed());
+        player1.setAngle(joystick.getAngle(player1.getAngle()));
+        player1.update(); // Actualizar posición de Player 1
+
+        // Comprobar colisiones con los límites
+        checkCollision(player1);
+        // Comprobar colisiones con otros jugadores
+        checkPlayerCollisions(player1);
     }
 
     private void draw() {
@@ -76,11 +82,17 @@ public class GameView extends SurfaceView implements Runnable {
             if (surfaceHolder.getSurface().isValid()) {
                 canvas = surfaceHolder.lockCanvas();
                 canvas.drawColor(Color.WHITE);
-                gameArea.draw(canvas);
-                for (Player player : players) {
-                    player.draw(canvas);
+
+                if (gameArea != null) {
+                    gameArea.draw(canvas);
+                } else {
+                    Log.e("GameView", "GameArea is null, cannot draw");
                 }
-                joystick.draw(canvas);
+
+                for (Player player : players) {
+                    player.draw(canvas); // Dibuja todos los jugadores
+                }
+                joystick.draw(canvas); // Dibuja el joystick
             }
         } finally {
             if (canvas != null) {
@@ -89,15 +101,50 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    private void checkCollision() {
-        Player firstPlayer = players.get(0); // Only check collision for the first player
-        float carCenterX = firstPlayer.getXPos() + 25;
-        float carCenterY = firstPlayer.getYPos() + 25;
+    private void checkCollision(Player player) {
+        float carCenterX = player.getXPos() + 25; // Ajusta según el tamaño del jugador
+        float carCenterY = player.getYPos() + 25; // Ajusta según el tamaño del jugador
 
         float distanceFromCenter = (float) Math.sqrt(Math.pow(carCenterX - centerX, 2) + Math.pow(carCenterY - centerY, 2));
+
         if (distanceFromCenter >= radius) {
-            firstPlayer.resetPosition(centerX, centerY);
-            // Alternatively, you can increment a collision counter for the first player here
+            player.resetPosition(); // Reiniciar posición si colisiona con los límites
+        }
+    }
+
+    private void checkPlayerCollisions(Player playerA) {
+        for (int i = 1; i < players.size(); i++) { // Comienza desde 1 para evitar el jugador 1
+            Player playerB = players.get(i);
+
+            float dx = playerA.getXPos() - playerB.getXPos();
+            float dy = playerA.getYPos() - playerB.getYPos();
+            float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+            float collisionDistance = 50; // Ajusta según el tamaño del jugador
+
+            if (distance < collisionDistance) {
+                handleCollision(playerA, playerB);
+            }
+        }
+    }
+
+    private void handleCollision(Player playerA, Player playerB) {
+        // Calcular el vector de separación
+        float dx = playerA.getXPos() - playerB.getXPos();
+        float dy = playerA.getYPos() - playerB.getYPos();
+        float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+        // Normalizar el vector
+        if (distance > 0) { // Evitar división por cero
+            float pushX = dx / distance;
+            float pushY = dy / distance;
+
+            // Ajustar posiciones de los jugadores
+            float pushDistance = 15; // Ajustar la intensidad del empuje
+            playerA.setXPos(playerA.getXPos() + pushX * pushDistance);
+            playerA.setYPos(playerA.getYPos() + pushY * pushDistance);
+            playerB.setXPos(playerB.getXPos() - pushX * pushDistance);
+            playerB.setYPos(playerB.getYPos() - pushY * pushDistance);
         }
     }
 
@@ -133,40 +180,16 @@ public class GameView extends SurfaceView implements Runnable {
         switch (action) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
-                handleTouchDown(event, pointerIndex, pointerId);
+                joystick.touchDown(event.getX(pointerIndex), event.getY(pointerIndex));
                 break;
             case MotionEvent.ACTION_MOVE:
-                handleTouchMove(event);
+                joystick.touchMove(event.getX(pointerIndex), event.getY(pointerIndex));
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
-                handleTouchUp();
+                joystick.touchUp();
                 break;
         }
         return true;
-    }
-
-    private void handleTouchDown(MotionEvent event, int pointerIndex, int pointerId) {
-        joystick.touchDown(event.getX(pointerIndex), event.getY(pointerIndex));
-    }
-
-    private void handleTouchMove(MotionEvent event) {
-        for (int i = 0; i < event.getPointerCount(); i++) {
-            int id = event.getPointerId(i);
-            float x = event.getX(i);
-            float y = event.getY(i);
-
-            // Control only the first player
-            if (id == 0) {
-                joystick.touchMove(x, y);
-                players.get(0).setSpeed(joystick.getSpeed());
-                players.get(0).setAngle(joystick.getAngle(players.get(0).getAngle()));
-            }
-        }
-    }
-
-    private void handleTouchUp() {
-        joystick.touchUp(); // Release joystick controls
-        players.get(0).setSpeed(0); // Stop the first player's speed
     }
 }
