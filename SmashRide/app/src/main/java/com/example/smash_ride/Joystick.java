@@ -23,17 +23,19 @@ public class Joystick {
     }
 
     public void touchMove(float x, float y) {
-        float deltaX = x - controlX;
-        float deltaY = y - controlY;
-        float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (isActive) {
+            float deltaX = x - controlX;
+            float deltaY = y - controlY;
+            float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        if (distance > CROSSHAIR_RADIUS) {
-            float ratio = CROSSHAIR_RADIUS / distance;
-            joystickX = controlX + deltaX * ratio;
-            joystickY = controlY + deltaY * ratio;
-        } else {
-            joystickX = x;
-            joystickY = y;
+            if (distance > CROSSHAIR_RADIUS) {
+                float ratio = CROSSHAIR_RADIUS / distance;
+                joystickX = controlX + deltaX * ratio;
+                joystickY = controlY + deltaY * ratio;
+            } else {
+                joystickX = x;
+                joystickY = y;
+            }
         }
     }
 
@@ -43,19 +45,19 @@ public class Joystick {
         joystickY = controlY;
     }
 
-    public float getSpeed() {
-        if (!isActive) return 0;
+    public float getSpeed(Player player) {
+        if (player.isColliding()) return 0; // No velocidad si está colisionando
 
         float joystickDistanceToCenter = (float) Math.sqrt(
                 Math.pow(joystickX - controlX, 2) +
                         Math.pow(joystickY - controlY, 2));
 
-        float speed = (joystickDistanceToCenter / CROSSHAIR_RADIUS) * 10; // Max speed: 10
+        float speed = (joystickDistanceToCenter / CROSSHAIR_RADIUS) * 10; // Velocidad máxima: 10
         return Math.min(speed, 10);
     }
 
-    public float getAngle(float carAngle) {
-        if (!isActive) return carAngle;
+    public float getAngle(Player player) {
+        if (player.isColliding()) return player.getAngle(); // No cambio de ángulo si está colisionando
 
         return (float) Math.toDegrees(Math.atan2(joystickY - controlY, joystickX - controlX));
     }
