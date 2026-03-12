@@ -4,8 +4,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -27,6 +25,25 @@ public class GameView extends SurfaceView implements Runnable {
     private float centerY;
     private float radius;
 
+    // --- Boost configuration ---
+    private static final long FULL_CHARGE_MS = 3000L;      // 3s to full charge
+    private static final long MAX_BOOST_MS = 3000L;        // boost max duration when fully charged
+    private static final float BOOST_MULTIPLIER = 2.0f;    // 2x joystick speed
+    private static final float BOOST_SPEED_CAP = 30f;     // max speed while boosting
+    private static final float RECHARGE_MULTIPLIER = 2.0f; // recharge takes double time (6s)
+
+    // --- Boost runtime state ---
+    private int joystickPointerId = -1; // pointer controlling joystick (first finger)
+    private int boostPointerId = -1;    // pointer for boost (second finger)
+
+    // chargeAvailableMs: cantidad actualmente almacenada (0..FULL_CHARGE_MS).
+    // boostStoredMs: cantidad transferida desde la reserva mientras se mantiene el dedo; consumida mientras boost activo.
+    private long chargeAvailableMs = FULL_CHARGE_MS; // start fully charged
+    private long boostStoredMs = 0L;
+    private boolean boostActive = false;
+
+    private long lastUpdateTimeMs = System.currentTimeMillis();
+
     public GameView(Context context, List<Player> players) {
         super(context);
         this.players = players;
@@ -41,42 +58,102 @@ public class GameView extends SurfaceView implements Runnable {
 
         joystick = new Joystick();
 
-        centerX = getWidth() / 2;
-        centerY = getHeight() / 2;
-        radius = 500; // Adjust the radius as needed
+        // center inicial (se actualizará en onSizeChanged)
+        centerX = getWidth() / 2f;
+        centerY = getHeight() / 2f;
+        radius = 500f;
         gameArea = new GameArea(centerX, centerY, radius);
+
+        // start fully charged
+        chargeAvailableMs = FULL_CHARGE_MS;
+        boostStoredMs = 0;
+        boostActive = false;
+        lastUpdateTimeMs = System.currentTimeMillis();
     }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        centerX = w / 2;
-        centerY = h / 2;
-
+        centerX = w / 2f;
+        centerY = h / 2f;
         gameArea = new GameArea(centerX, centerY, radius);
     }
 
     @Override
     public void run() {
         while (isPlaying) {
-            update(); // Only update Player 1
+            update();
             draw();
+            try {
+                Thread.sleep(16); // ~60fps
+            } catch (InterruptedException ignored) {}
         }
     }
 
     private void update() {
-        Player player1 = players.get(0); // Control only player 1
+        long now = System.currentTimeMillis();
+        long delta = now - lastUpdateTimeMs;
+        if (delta <= 0) delta = 16;
+        lastUpdateTimeMs = now;
 
-        if (!player1.isColliding()) {
-            player1.setSpeed(joystick.getSpeed(player1)); // Update speed if not colliding
-            player1.setAngle(joystick.getAngle(player1)); // Update angle if not colliding
+        Player player1 = players.get(0);
+
+        // Si el jugador está colisionando, sólo procesamos recargas (y evitamos movimiento)
+        if (player1.isColliding()) {
+            // recargar lentamente si no hay dedo de boost
+            if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
+                long gain = (long) (delta / RECHARGE_MULTIPLIER);
+                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
+            }
+            player1.setSpeed(0f);
+            return;
         }
 
-        player1.update(); // Update position of Player 1
+        // 1) Gestión de transferencia de carga mientras segundo dedo esté pulsado
+        if (boostPointerId != -1) {
+            // Segundo dedo PRESIONADO: transferir desde reserva a boostStored (1:1) hasta MAX_BOOST_MS
+            if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
+                long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
+                chargeAvailableMs -= transfer;
+                boostStoredMs += transfer;
+            }
+            // Si hay boostStored disponible => boost activo
+            boostActive = boostStoredMs > 0;
+        } else {
+            // Segundo dedo NO PRESIONADO: detener boostStored (boost sólo mientras se mantiene pulsado)
+            boostActive = false;
+            boostStoredMs = 0L;
+            // recarga a velocidad reducida (1/RECHARGE_MULTIPLIER)
+            if (chargeAvailableMs < FULL_CHARGE_MS) {
+                long gain = (long) (delta / RECHARGE_MULTIPLIER);
+                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
+            }
+        }
 
-        // Check collisions with boundaries
+        // 2) Aplicar efecto de boost sólo si boostActive (es decir, dedo pulsado y boostStoredMs>0)
+        float baseSpeed = joystick.getSpeed(player1);
+        float effectiveSpeed = baseSpeed;
+        if (boostActive && boostStoredMs > 0) {
+            effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
+            // consumir boostStoredMs mientras se aplica el boost
+            long consume = Math.min(delta, boostStoredMs);
+            boostStoredMs -= consume;
+            if (boostStoredMs <= 0) {
+                boostStoredMs = 0;
+                boostActive = false;
+            }
+        }
+
+        if (!player1.isColliding()) {
+            player1.setSpeed(effectiveSpeed);
+            player1.setAngle(joystick.getAngle(player1));
+        } else {
+            player1.setSpeed(0f);
+        }
+
+        player1.update();
+
         checkCollision(player1);
-        // Check collisions with other players
         checkPlayerCollisions(player1);
     }
 
@@ -87,124 +164,118 @@ public class GameView extends SurfaceView implements Runnable {
                 canvas = surfaceHolder.lockCanvas();
                 canvas.drawColor(Color.WHITE);
 
-                if (gameArea != null) {
-                    gameArea.draw(canvas);
-                } else {
-                    Log.e("GameView", "GameArea is null, cannot draw");
-                }
+                if (gameArea != null) gameArea.draw(canvas);
+                else Log.e("GameView", "GameArea is null, cannot draw");
 
-                for (Player player : players) {
-                    player.draw(canvas); // Draw all players
-                }
-                joystick.draw(canvas); // Draw the joystick
+                for (Player p : players) p.draw(canvas);
+                joystick.draw(canvas);
+
+                drawBoostUI(canvas);
             }
         } finally {
-            if (canvas != null) {
-                surfaceHolder.unlockCanvasAndPost(canvas);
-            }
+            if (canvas != null) surfaceHolder.unlockCanvasAndPost(canvas);
         }
+    }
+
+    private void drawBoostUI(Canvas canvas) {
+        float left = 20f, top = 20f, width = 200f, height = 20f;
+        Paint bg = new Paint();
+        bg.setColor(Color.LTGRAY);
+        canvas.drawRect(left, top, left + width, top + height, bg);
+
+        float fraction;
+        if (boostPointerId != -1 && boostStoredMs > 0) {
+            // mostrando fracción del boost almacenado respecto a MAX_BOOST_MS
+            fraction = (float) boostStoredMs / (float) MAX_BOOST_MS;
+            Paint fg = new Paint();
+            fg.setColor(Color.YELLOW);
+            canvas.drawRect(left, top, left + width * fraction, top + height, fg);
+        } else {
+            // mostrar reserva disponible
+            fraction = (float) chargeAvailableMs / (float) FULL_CHARGE_MS;
+            Paint fg = new Paint();
+            fg.setColor(Color.GREEN);
+            canvas.drawRect(left, top, left + width * fraction, top + height, fg);
+        }
+
+        Paint border = new Paint();
+        border.setStyle(Paint.Style.STROKE);
+        border.setColor(Color.BLACK);
+        canvas.drawRect(left, top, left + width, top + height, border);
     }
 
     private void checkCollision(Player player) {
-        float carCenterX = player.getXPos() + 25; // Adjust based on player size
-        float carCenterY = player.getYPos() + 25; // Adjust based on player size
-
-        float distanceFromCenter = (float) Math.sqrt(Math.pow(carCenterX - centerX, 2) + Math.pow(carCenterY - centerY, 2));
-
-        if (distanceFromCenter >= radius) {
-            player.resetPosition(); // Reset position if colliding with boundaries
-        }
+        float carCenterX = player.getXPos() + 25;
+        float carCenterY = player.getYPos() + 25;
+        float distanceFromCenter = (float) Math.hypot(carCenterX - centerX, carCenterY - centerY);
+        if (distanceFromCenter >= radius) player.resetPosition();
     }
 
     private void checkPlayerCollisions(Player playerA) {
-        for (int i = 1; i < players.size(); i++) { // Start from index 1 to avoid player 1
+        for (int i = 1; i < players.size(); i++) {
             Player playerB = players.get(i);
-
             float dx = playerA.getXPos() - playerB.getXPos();
             float dy = playerA.getYPos() - playerB.getYPos();
-            float distance = (float) Math.sqrt(dx * dx + dy * dy);
-
-            float collisionDistance = 50; // Adjust based on player size
-
-            if (distance < collisionDistance) {
-                handleCollision(playerA, playerB); // Handle collision between players
-            }
+            float distance = (float) Math.hypot(dx, dy);
+            float collisionDistance = 50f;
+            if (distance < collisionDistance) handleCollision(playerA, playerB);
         }
     }
 
     private void handleCollision(Player playerA, Player playerB) {
         float dx = playerA.getXPos() - playerB.getXPos();
         float dy = playerA.getYPos() - playerB.getYPos();
-        float distance = (float) Math.sqrt(dx * dx + dy * dy);
-
-        // Prevent division by zero
+        float distance = (float) Math.hypot(dx, dy);
         if (distance == 0) return;
-
-        // Calculate normalized direction vector
         float pushX = dx / distance;
         float pushY = dy / distance;
-
-        // Determine speeds
         float speedA = playerA.getSpeed();
         float speedB = playerB.getSpeed();
 
-        // Check if both players have the same speed
         if (speedA == speedB) {
-            // Take the same retreat action for both players
             applyRetroceForBoth(playerA, playerB, pushX, pushY, speedA);
         } else {
-            // Determine which player has the lesser speed and the greater speed
-            Player affectedPlayer = playerA.getSpeed() < playerB.getSpeed() ? playerA : playerB;
-            Player fasterPlayer = playerA.getSpeed() >= playerB.getSpeed() ? playerA : playerB;
-
-            // Use the speed of the faster player for retreat calculation
-            float retreatSpeed = fasterPlayer.getSpeed(); // Adjust factor for tuning
-
-            // Change the angle of the affected player to the direction they'll move
-            affectedPlayer.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
-            affectedPlayer.disableJoystick(); // Disable joystick control
-
-            // Apply the push effect over 1 second (11 steps)
+            Player affected = playerA.getSpeed() < playerB.getSpeed() ? playerA : playerB;
+            Player faster = playerA.getSpeed() >= playerB.getSpeed() ? playerA : playerB;
+            float retreatSpeed = faster.getSpeed();
+            affected.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
+            affected.disableJoystick();
             for (int i = 0; i <= 10; i++) {
                 final int step = i;
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    affectedPlayer.setXPos(affectedPlayer.getXPos() - pushX * retreatSpeed);
-                    affectedPlayer.setYPos(affectedPlayer.getYPos() - pushY * retreatSpeed);
-
-                    // Re-enable joystick control after finishing the push
-                    if (step == 10) {
-                        affectedPlayer.enableJoystick(); // Enable joystick control back
-                    }
-                }, step * 10); // Each step is 10 ms apart
+                final long delay = step * 10L;
+                final float dxPush = pushX;
+                final float dyPush = pushY;
+                final float rSpeed = retreatSpeed;
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    affected.setXPos(affected.getXPos() - dxPush * rSpeed);
+                    affected.setYPos(affected.getYPos() - dyPush * rSpeed);
+                    if (step == 10) affected.enableJoystick();
+                }, delay);
             }
         }
     }
 
-    // Method to handle retroce for both players
     private void applyRetroceForBoth(Player playerA, Player playerB, float pushX, float pushY, float retreatSpeed) {
         playerA.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
-        playerB.setAngle((float) Math.toDegrees(Math.atan2(-pushY, -pushX))); // Reverse angle for playerB
-
+        playerB.setAngle((float) Math.toDegrees(Math.atan2(-pushY, -pushX)));
         playerA.disableJoystick();
         playerB.disableJoystick();
-
-        // Using a handler to apply retreat over 2.5 seconds
-        for (int i = 0; i <= 10; i++) { // 25 steps for 2.5 seconds
+        for (int i = 0; i <= 10; i++) {
             final int step = i;
-
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                playerA.setXPos(playerA.getXPos() + pushX * retreatSpeed * 0.1f); // Retreat by 0.1 * speed
-                playerA.setYPos(playerA.getYPos() + pushY * retreatSpeed * 0.1f);
-
-                playerB.setXPos(playerB.getXPos() - pushX * retreatSpeed * 0.1f); // Retreat in opposite direction
-                playerB.setYPos(playerB.getYPos() - pushY * retreatSpeed * 0.1f);
-
-                // Re-enable joystick control after finishing the push for both players
+            final long delay = step * 10L;
+            final float dxPush = pushX;
+            final float dyPush = pushY;
+            final float rSpeed = retreatSpeed;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                playerA.setXPos(playerA.getXPos() + dxPush * rSpeed * 0.1f);
+                playerA.setYPos(playerA.getYPos() + dyPush * rSpeed * 0.1f);
+                playerB.setXPos(playerB.getXPos() - dxPush * rSpeed * 0.1f);
+                playerB.setYPos(playerB.getYPos() - dyPush * rSpeed * 0.1f);
                 if (step == 10) {
                     playerA.enableJoystick();
                     playerB.enableJoystick();
                 }
-            }, step * 10); // Each step is 10 ms apart
+            }, delay);
         }
     }
 
@@ -237,22 +308,45 @@ public class GameView extends SurfaceView implements Runnable {
         int pointerIndex = event.getActionIndex();
         int pointerId = event.getPointerId(pointerIndex);
 
-        // Assuming control only for the first player using the joystick
         Player player1 = players.get(0);
-
-        if (player1.isColliding()) return true; // Ignore touch events if player is colliding
+        if (player1.isColliding()) return true;
 
         switch (action) {
             case MotionEvent.ACTION_DOWN:
-            case MotionEvent.ACTION_POINTER_DOWN:
-                joystick.touchDown(event.getX(pointerIndex), event.getY(pointerIndex));
-                break;
+            case MotionEvent.ACTION_POINTER_DOWN: {
+                float x = event.getX(pointerIndex);
+                float y = event.getY(pointerIndex);
+                if (joystickPointerId == -1) {
+                    joystickPointerId = pointerId;
+                    joystick.touchDown(x, y);
+                } else if (boostPointerId == -1) {
+                    boostPointerId = pointerId;
+                    // la transferencia de carga para boost se maneja en update()
+                }
+            } break;
+
             case MotionEvent.ACTION_MOVE:
-                joystick.touchMove(event.getX(pointerIndex), event.getY(pointerIndex));
+                if (joystickPointerId != -1) {
+                    int idx = event.findPointerIndex(joystickPointerId);
+                    if (idx != -1) {
+                        float mx = event.getX(idx);
+                        float my = event.getY(idx);
+                        joystick.touchMove(mx, my);
+                    }
+                }
                 break;
+
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
-                joystick.touchUp();
+                if (pointerId == joystickPointerId) {
+                    joystick.touchUp();
+                    joystickPointerId = -1;
+                } else if (pointerId == boostPointerId) {
+                    boostPointerId = -1;
+                    // detener inmediatamente cualquier boostStored y efecto
+                    boostStoredMs = 0L;
+                    boostActive = false;
+                }
                 break;
         }
         return true;
