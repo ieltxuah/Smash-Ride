@@ -34,10 +34,20 @@ android {
 }
 
 dependencies {
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-firestore")
+
+    // ML Kit Translate
     implementation("com.google.mlkit:translate:17.0.3")
+
+    // AndroidX
+    implementation("androidx.work:work-runtime:2.8.1")
+    implementation("androidx.core:core:1.9.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+
+    // Default
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)

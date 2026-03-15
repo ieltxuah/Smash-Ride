@@ -1,6 +1,9 @@
 package com.example.smash_ride;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -12,6 +15,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
@@ -22,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,15 +42,47 @@ public class MainActivity extends AppCompatActivity {
             "en", "es", "fr", "de", "it", "zh"
     };
 
+    private static final String PREFS = "notification_prefs";
+    private static final String KEY_WORK_ID = "work_id";
+
+    private static final int REQUEST_CODE_POST_NOTIF = 2001;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.menu);
 
+        // Solicitar permiso POST_NOTIFICATIONS solo en Android 13+ (API 33).
+        // Para minSdk 31 esto no solicitará nada, pero si compilas/target=33 la solicitud se hará.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_CODE_POST_NOTIF);
+            }
+        }
+
+        // Si hay un recordatorio pendiente (programado al cerrar), lo cancelamos al volver
+        cancelPendingReminderIfAny();
+
         initializeVariables();
         setupUI();
         setupTranslator(selectedLanguageCode, TranslateLanguage.ENGLISH);
         downloadModelAndTranslate();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_POST_NOTIF) {
+            // Opcional: comprobar grantResults si quieres mostrar UI; el Worker también verifica permiso antes de notify()
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d("MainActivity", "POST_NOTIFICATIONS granted");
+            } else {
+                Log.d("MainActivity", "POST_NOTIFICATIONS denied");
+            }
+        }
     }
 
     private void initializeVariables() {
@@ -81,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void downloadModelAndTranslate() {
+        if (translator == null) return;
         translator.downloadModelIfNeeded()
                 .addOnSuccessListener(aVoid -> {
                     Log.d("MainActivity", "Model downloaded successfully.");
@@ -108,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void translateText(String textToTranslate, View view) {
+        if (translator == null) return;
         translator.translate(textToTranslate)
                 .addOnSuccessListener(translatedText -> updateViewText(view, translatedText))
                 .addOnFailureListener(e -> handleTranslationError("Translation failed", e));
@@ -168,6 +210,30 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (translator != null) {
             translator.close();
+        }
+        // Programar notificación a 10 minutos al cerrar la app
+        scheduleReturnReminder();
+    }
+
+    private void scheduleReturnReminder() {
+        OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                .setInitialDelay(10, TimeUnit.MINUTES)
+                .build();
+
+        WorkManager.getInstance(this).enqueue(work);
+
+        UUID id = work.getId();
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_WORK_ID, id.toString()).apply();
+    }
+
+    private void cancelPendingReminderIfAny() {
+        String workIdString = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_WORK_ID, null);
+        if (workIdString != null) {
+            try {
+                UUID workId = UUID.fromString(workIdString);
+                WorkManager.getInstance(this).cancelWorkById(workId);
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_WORK_ID).apply();
+            } catch (IllegalArgumentException ignored) {}
         }
     }
 }
