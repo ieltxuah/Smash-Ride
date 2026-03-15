@@ -4,6 +4,10 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -43,6 +47,11 @@ public class GameView extends SurfaceView implements Runnable {
     private boolean boostActive = false;
 
     private long lastUpdateTimeMs = System.currentTimeMillis();
+
+    // Vibration config
+    private static final long VIBRATION_DURATION_MS = 100; // duración breve en ms
+    private long lastVibrationTimeMs = 0;
+    private static final long VIBRATION_THROTTLE_MS = 200; // evitar vibraciones demasiado frecuentes
 
     public GameView(Context context, List<Player> players) {
         super(context);
@@ -208,7 +217,10 @@ public class GameView extends SurfaceView implements Runnable {
         float carCenterX = player.getXPos() + 25;
         float carCenterY = player.getYPos() + 25;
         float distanceFromCenter = (float) Math.hypot(carCenterX - centerX, carCenterY - centerY);
-        if (distanceFromCenter >= radius) player.resetPosition();
+        if (distanceFromCenter >= radius) {
+            player.resetPosition();
+            vibratePhoneThrottled();
+        }
     }
 
     private void checkPlayerCollisions(Player playerA) {
@@ -226,7 +238,9 @@ public class GameView extends SurfaceView implements Runnable {
         float dx = playerA.getXPos() - playerB.getXPos();
         float dy = playerA.getYPos() - playerB.getYPos();
         float distance = (float) Math.hypot(dx, dy);
-        if (distance == 0) return;
+
+        vibratePhoneThrottled();
+
         float pushX = dx / distance;
         float pushY = dy / distance;
         float speedA = playerA.getSpeed();
@@ -276,6 +290,41 @@ public class GameView extends SurfaceView implements Runnable {
                     playerB.enableJoystick();
                 }
             }, delay);
+        }
+    }
+
+    private void vibratePhoneThrottled() {
+        long now = System.currentTimeMillis();
+        if (now - lastVibrationTimeMs < VIBRATION_THROTTLE_MS) return;
+        lastVibrationTimeMs = now;
+        vibratePhone();
+    }
+
+    private void vibratePhone() {
+        try {
+            Context ctx = getContext();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // API 31+
+                VibratorManager vm = (VibratorManager) ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+                if (vm != null) {
+                    Vibrator vibrator = vm.getDefaultVibrator();
+                    if (vibrator != null && vibrator.hasVibrator()) {
+                        vibrator.vibrate(VibrationEffect.createOneShot(VIBRATION_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE));
+                    }
+                    return;
+                }
+            }
+
+            Vibrator v = (Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createOneShot(VIBRATION_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    // deprecated but kept for very old devices
+                    v.vibrate(VIBRATION_DURATION_MS);
+                }
+            }
+        } catch (Exception e) {
+            Log.w("GameView", "Vibration failed: " + e.getMessage());
         }
     }
 
