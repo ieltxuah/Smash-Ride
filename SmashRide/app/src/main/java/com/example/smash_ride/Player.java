@@ -17,8 +17,10 @@ public class Player {
     private Paint paint;
 
     private float initialSpeed; // Almacenar velocidad inicial
+    private PlayerPositionManager positionManager;
+    private boolean wasStopped = true;
 
-    public Player(String name, float x, float y, boolean someFlag, int speed) {
+    public Player(String name, String uid, float x, float y, boolean someFlag, int speed) {
         this.name = name;
         this.xPos = x;
         this.yPos = y;
@@ -28,6 +30,9 @@ public class Player {
         this.initialSpeed = speed; // Almacenar velocidad inicial
         this.paint = new Paint();
         this.paint.setColor(Color.BLUE); // Color del jugador
+        if (uid != null) {
+            this.positionManager = new PlayerPositionManager(uid);
+        }
     }
 
     public void update() {
@@ -41,6 +46,12 @@ public class Player {
             yPos += Math.sin(Math.toRadians(collisionAngle)) * speed; // Retroceso en Y
             isColliding = false; // Reiniciar estado de colisión después del retroceso
         }
+
+        boolean isStopped = (speed == 0f);
+        if (isStopped && !wasStopped && positionManager != null) {
+            positionManager.savePosition(xPos, yPos);
+        }
+        wasStopped = isStopped;
     }
 
     public void setSpeed(float speed) {

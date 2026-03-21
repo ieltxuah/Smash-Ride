@@ -115,6 +115,7 @@ public class GameView extends SurfaceView implements Runnable {
                 chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
             }
             player1.setSpeed(0f);
+            player1.update(); // llama al update para que salte la deteccion de parar
             return;
         }
 

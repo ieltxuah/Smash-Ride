@@ -18,6 +18,8 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     private float centerX;
     private float centerY;
     private float radius;
+    private String username;
+    private String uid;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +29,8 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         loadingLayout = findViewById(R.id.loading_layout); // Reference to your loading layout (ProgressBar and TextView)
         players = new ArrayList<>();
         handler = new Handler(Looper.getMainLooper());
+        username = getIntent().getStringExtra("username");
+        uid = getIntent().getStringExtra("uid");
 
         // Start player initialization and loading
         initializePlayers();
@@ -47,8 +51,9 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
                     { (int) (centerX - radius), (int) centerY }  // West
             };
 
-            for (int i = 0; i < 4; i++) {
-                players.add(new Player("Player " + (i + 1), positions[i][0], positions[i][1], false, 5));
+            players.add(new Player(username, uid, positions[0][0], positions[0][1], false, 5));
+            for (int i = 1; i < 4; i++) {
+                players.add(new Player("Player " + (i + 1), null, positions[i][0], positions[i][1], false, 5));
                 try {
                     Thread.sleep(500); // Simulate delay for player creation
                 } catch (InterruptedException e) {

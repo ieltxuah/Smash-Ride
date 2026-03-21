@@ -8,9 +8,13 @@ material = "1.13.0"
 activity = "1.12.3"
 constraintlayout = "2.2.1"
 firebaseDatabase = "22.0.1"
+mockito = "5.11.0"
+mockito-inline = "5.2.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+mockito-inline = { group = "org.mockito", name = "mockito-inline", version.ref = "mockito-inline" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }

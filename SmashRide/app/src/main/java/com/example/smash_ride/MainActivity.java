@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,6 +20,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkManager;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
@@ -47,10 +50,16 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_POST_NOTIF = 2001;
 
+    private EditText emailInput;
+    private EditText passwordInput;
+    private FirebaseAuth auth;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.menu);
+
+        auth = FirebaseAuth.getInstance();
 
         // Solicitar permiso POST_NOTIFICATIONS solo en Android 13+ (API 33).
         // Para minSdk 31 esto no solicitará nada, pero si compilas/target=33 la solicitud se hará.
@@ -91,13 +100,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupUI() {
-        Button startButton = findViewById(R.id.start_button);
-        startButton.setOnClickListener(v -> startGame());
+        emailInput = findViewById(R.id.email_input);
+        passwordInput = findViewById(R.id.password_input);
+
+        Button loginButton = findViewById(R.id.login_button);
+        loginButton.setOnClickListener(v -> login());
+
+        Button signupButton = findViewById(R.id.signup_button);
+        signupButton.setOnClickListener(v -> signUp());
 
         Spinner languageSpinner = findViewById(R.id.language_spinner);
         setupLanguageSpinner(languageSpinner);
         viewsToTranslate.add(findViewById(R.id.title));
-        viewsToTranslate.add(startButton);
+        viewsToTranslate.add(loginButton);
+        viewsToTranslate.add(signupButton);
+    }
+
+    private void login() {
+        String email = emailInput.getText().toString().trim();
+        String password = passwordInput.getText().toString().trim();
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        auth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this, task -> {
+                    if (task.isSuccessful()) {
+                        FirebaseUser user = auth.getCurrentUser();
+                        new PlayerPositionManager(user.getUid()).createProfile(user.getEmail());
+                        startGame(user.getEmail(), user.getUid());
+                    } else {
+                        Toast.makeText(this, "Log in failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void signUp() {
+        String email = emailInput.getText().toString().trim();
+        String password = passwordInput.getText().toString().trim();
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this, task -> {
+                    if (task.isSuccessful()) {
+                        FirebaseUser user = auth.getCurrentUser();
+                        new PlayerPositionManager(user.getUid()).createProfile(user.getEmail());
+                        startGame(user.getEmail(), user.getUid());
+                    } else {
+                        Toast.makeText(this, "Sign up failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void startGame(String email, String uid) {
+        Intent intent = new Intent(this, GameActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        intent.putExtra("username", email);
+        intent.putExtra("uid", uid);
+        startActivity(intent);
     }
 
     private void setupLanguageSpinner(Spinner spinner) {
@@ -197,12 +263,6 @@ public class MainActivity extends AppCompatActivity {
             case "zh": return TranslateLanguage.CHINESE;
             default: return TranslateLanguage.ENGLISH; // English (en)
         }
-    }
-
-    private void startGame() {
-        Intent intent = new Intent(this, GameActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(intent);
     }
 
     @Override

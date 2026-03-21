@@ -8,6 +8,10 @@ android {
     namespace = "com.example.smash_ride"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.example.smash_ride"
         minSdk = 31
@@ -16,6 +20,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "FIREBASE_DB_URL", "\"https://kirby-smash-ride-default-rtdb.europe-west1.firebasedatabase.app\"")
     }
 
     buildTypes {
@@ -34,6 +39,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.firebase:firebase-auth")
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-analytics")
@@ -54,6 +60,8 @@ dependencies {
     implementation(libs.constraintlayout)
     implementation(libs.firebase.database)
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.inline)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 }
