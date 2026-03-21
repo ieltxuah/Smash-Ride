@@ -17,6 +17,12 @@ import java.util.List;
 
 public class GameView extends SurfaceView implements Runnable {
     private GameOverListener gameOverListener;
+    public enum GameMode { LIVES, TIMER }
+    private GameMode gameMode = GameMode.LIVES;
+    private long timerMs = 0L;
+    private static final long TIMER_TOTAL_MS = 2 * 60 * 1000L;
+    private boolean offline = true;
+
     private Thread gameThread;
     private boolean isPlaying;
     private Paint paint;
@@ -29,29 +35,25 @@ public class GameView extends SurfaceView implements Runnable {
     private float centerY;
     private float radius;
 
-    // --- Boost configuration ---
-    private static final long FULL_CHARGE_MS = 3000L;      // 3s to full charge
-    private static final long MAX_BOOST_MS = 3000L;        // boost max duration when fully charged
-    private static final float BOOST_MULTIPLIER = 2.0f;    // 2x joystick speed
-    private static final float BOOST_SPEED_CAP = 30f;     // max speed while boosting
-    private static final float RECHARGE_MULTIPLIER = 2.0f; // recharge takes double time (6s)
+    private static final long FULL_CHARGE_MS = 3000L;
+    private static final long MAX_BOOST_MS = 3000L;
+    private static final float BOOST_MULTIPLIER = 2.0f;
+    private static final float BOOST_SPEED_CAP = 30f;
+    private static final float RECHARGE_MULTIPLIER = 2.0f;
 
-    // --- Boost runtime state ---
-    private int joystickPointerId = -1; // pointer controlling joystick (first finger)
-    private int boostPointerId = -1;    // pointer for boost (second finger)
+    private int joystickPointerId = -1;
+    private int boostPointerId = -1;
 
-    // chargeAvailableMs: cantidad actualmente almacenada (0..FULL_CHARGE_MS).
-    // boostStoredMs: cantidad transferida desde la reserva mientras se mantiene el dedo; consumida mientras boost activo.
-    private long chargeAvailableMs = FULL_CHARGE_MS; // start fully charged
+    private long chargeAvailableMs = FULL_CHARGE_MS;
     private long boostStoredMs = 0L;
     private boolean boostActive = false;
 
     private long lastUpdateTimeMs = System.currentTimeMillis();
+    private boolean ended = false;
 
-    // Vibration config
-    private static final long VIBRATION_DURATION_MS = 100; // duración breve en ms
+    private static final long VIBRATION_DURATION_MS = 100;
     private long lastVibrationTimeMs = 0;
-    private static final long VIBRATION_THROTTLE_MS = 200; // evitar vibraciones demasiado frecuentes
+    private static final long VIBRATION_THROTTLE_MS = 200;
 
     public GameView(Context context, List<Player> players) {
         super(context);
@@ -67,17 +69,16 @@ public class GameView extends SurfaceView implements Runnable {
 
         joystick = new Joystick();
 
-        // center inicial (se actualizará en onSizeChanged)
         centerX = getWidth() / 2f;
         centerY = getHeight() / 2f;
         radius = 500f;
         gameArea = new GameArea(centerX, centerY, radius);
 
-        // start fully charged
         chargeAvailableMs = FULL_CHARGE_MS;
         boostStoredMs = 0;
         boostActive = false;
         lastUpdateTimeMs = System.currentTimeMillis();
+        ended = false;
     }
 
     @Override
@@ -88,13 +89,28 @@ public class GameView extends SurfaceView implements Runnable {
         gameArea = new GameArea(centerX, centerY, radius);
     }
 
+    public void setGameMode(GameMode mode) {
+        this.gameMode = mode;
+        if (mode == GameMode.TIMER) timerMs = TIMER_TOTAL_MS;
+        // ensure players don't start moving automatically when mode changes
+        if (players != null) {
+            for (Player p : players) {
+                if (!p.isDestroyed()) p.setSpeed(0f);
+            }
+        }
+    }
+
+    public void setOffline(boolean off) {
+        this.offline = off;
+    }
+
     @Override
     public void run() {
         while (isPlaying) {
             update();
             draw();
             try {
-                Thread.sleep(16); // ~60fps
+                Thread.sleep(16);
             } catch (InterruptedException ignored) {}
         }
     }
@@ -105,65 +121,118 @@ public class GameView extends SurfaceView implements Runnable {
         if (delta <= 0) delta = 16;
         lastUpdateTimeMs = now;
 
-        Player player1 = players.get(0);
+        if (ended) return;
 
-        // Si el jugador está colisionando, sólo procesamos recargas (y evitamos movimiento)
+        if (gameMode == GameMode.TIMER) {
+            timerMs -= delta;
+            if (timerMs <= 0) {
+                endMatchAndShowRanking();
+                return;
+            }
+        }
+
+        Player player1 = null;
+        if (!players.isEmpty() && !players.get(0).isDestroyed()) player1 = players.get(0);
+        if (player1 == null) {
+            if (gameMode == GameMode.LIVES) {
+                endMatchNoWinner();
+                return;
+            } else {
+                endMatchAndShowRanking();
+                return;
+            }
+        }
+
         if (player1.isColliding()) {
-            // recargar lentamente si no hay dedo de boost
             if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
                 long gain = (long) (delta / RECHARGE_MULTIPLIER);
                 chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
             }
             player1.setSpeed(0f);
-            return;
-        }
-
-        // 1) Gestión de transferencia de carga mientras segundo dedo esté pulsado
-        if (boostPointerId != -1) {
-            // Segundo dedo PRESIONADO: transferir desde reserva a boostStored (1:1) hasta MAX_BOOST_MS
-            if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
-                long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
-                chargeAvailableMs -= transfer;
-                boostStoredMs += transfer;
-            }
-            // Si hay boostStored disponible => boost activo
-            boostActive = boostStoredMs > 0;
         } else {
-            // Segundo dedo NO PRESIONADO: detener boostStored (boost sólo mientras se mantiene pulsado)
-            boostActive = false;
-            boostStoredMs = 0L;
-            // recarga a velocidad reducida (1/RECHARGE_MULTIPLIER)
-            if (chargeAvailableMs < FULL_CHARGE_MS) {
-                long gain = (long) (delta / RECHARGE_MULTIPLIER);
-                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
-            }
-        }
-
-        // 2) Aplicar efecto de boost sólo si boostActive (es decir, dedo pulsado y boostStoredMs>0)
-        float baseSpeed = joystick.getSpeed(player1);
-        float effectiveSpeed = baseSpeed;
-        if (boostActive && boostStoredMs > 0) {
-            effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
-            // consumir boostStoredMs mientras se aplica el boost
-            long consume = Math.min(delta, boostStoredMs);
-            boostStoredMs -= consume;
-            if (boostStoredMs <= 0) {
-                boostStoredMs = 0;
+            if (boostPointerId != -1) {
+                if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
+                    long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
+                    chargeAvailableMs -= transfer;
+                    boostStoredMs += transfer;
+                }
+                boostActive = boostStoredMs > 0;
+            } else {
                 boostActive = false;
+                boostStoredMs = 0L;
+                if (chargeAvailableMs < FULL_CHARGE_MS) {
+                    long gain = (long) (delta / RECHARGE_MULTIPLIER);
+                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
+                }
+            }
+
+            float baseSpeed = joystick.getSpeed(player1);
+            float effectiveSpeed = baseSpeed;
+            if (boostActive && boostStoredMs > 0) {
+                effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
+                long consume = Math.min(delta, boostStoredMs);
+                boostStoredMs -= consume;
+                if (boostStoredMs <= 0) {
+                    boostStoredMs = 0;
+                    boostActive = false;
+                }
+            }
+
+            if (!player1.isColliding()) {
+                player1.setSpeed(effectiveSpeed);
+                player1.setAngle(joystick.getAngle(player1));
+            } else {
+                player1.setSpeed(0f);
             }
         }
 
-        if (!player1.isColliding()) {
-            player1.setSpeed(effectiveSpeed);
-            player1.setAngle(joystick.getAngle(player1));
-        } else {
-            player1.setSpeed(0f);
+        for (Player p : players) {
+            if (p.isDestroyed()) continue;
+            p.update();
         }
 
-        player1.update();
+        if (offline) {
+            for (int i = 0; i < players.size(); i++) {
+                Player a = players.get(i);
+                if (a.isDestroyed()) continue;
+                for (int j = i + 1; j < players.size(); j++) {
+                    Player b = players.get(j);
+                    if (b.isDestroyed()) continue;
+                    float dx = a.getXPos() - b.getXPos();
+                    float dy = a.getYPos() - b.getYPos();
+                    float dist = (float) Math.hypot(dx, dy);
+                    if (dist < 50f) handleCollision(a, b);
+                }
+            }
+        } else {
+            checkPlayerCollisions(player1);
+        }
 
-        checkCollision(player1);
-        checkPlayerCollisions(player1);
+        for (Player p : players) {
+            if (p.isDestroyed()) continue;
+            checkCollision(p);
+        }
+
+        int aliveCount = 0;
+        Player lastAlive = null;
+        for (Player p : players) {
+            if (!p.isDestroyed()) { aliveCount++; lastAlive = p; }
+        }
+
+        if (gameMode == GameMode.LIVES) {
+            if (aliveCount <= 1) {
+                if (aliveCount == 1 && lastAlive != null) {
+                    endMatchWithWinner(lastAlive);
+                } else {
+                    endMatchNoWinner();
+                }
+            }
+        } else if (gameMode == GameMode.TIMER) {
+            // in TIMER mode we only end when timer runs out OR if <=1 alive we go to ranking
+            if (aliveCount <= 1) {
+                endMatchAndShowRanking();
+            }
+        }
     }
 
     private void draw() {
@@ -176,7 +245,9 @@ public class GameView extends SurfaceView implements Runnable {
                 if (gameArea != null) gameArea.draw(canvas);
                 else Log.e("GameView", "GameArea is null, cannot draw");
 
-                for (Player p : players) p.draw(canvas);
+                for (Player p : players) {
+                    if (!p.isDestroyed()) p.draw(canvas);
+                }
                 joystick.draw(canvas);
 
                 drawBoostUI(canvas);
@@ -194,13 +265,11 @@ public class GameView extends SurfaceView implements Runnable {
 
         float fraction;
         if (boostPointerId != -1 && boostStoredMs > 0) {
-            // mostrando fracción del boost almacenado respecto a MAX_BOOST_MS
             fraction = (float) boostStoredMs / (float) MAX_BOOST_MS;
             Paint fg = new Paint();
             fg.setColor(Color.YELLOW);
             canvas.drawRect(left, top, left + width * fraction, top + height, fg);
         } else {
-            // mostrar reserva disponible
             fraction = (float) chargeAvailableMs / (float) FULL_CHARGE_MS;
             Paint fg = new Paint();
             fg.setColor(Color.GREEN);
@@ -214,18 +283,28 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void checkCollision(Player player) {
+        if (player == null || player.isDestroyed()) return;
         float carCenterX = player.getXPos() + 25;
         float carCenterY = player.getYPos() + 25;
         float distanceFromCenter = (float) Math.hypot(carCenterX - centerX, carCenterY - centerY);
         if (distanceFromCenter >= radius) {
+            if (gameMode == GameMode.LIVES) {
+                if (!player.isDestroyed()) {
+                    player.loseLife();
+                    if (players.indexOf(player) == 0) vibratePhoneThrottled();
+                }
+            } else {
+                // TIMER mode: do not reduce lives or mark destroyed; just reset position
+            }
             player.resetPosition();
-            vibratePhoneThrottled();
         }
     }
 
     private void checkPlayerCollisions(Player playerA) {
+        if (playerA == null || playerA.isDestroyed()) return;
         for (int i = 1; i < players.size(); i++) {
             Player playerB = players.get(i);
+            if (playerB.isDestroyed()) continue;
             float dx = playerA.getXPos() - playerB.getXPos();
             float dy = playerA.getYPos() - playerB.getYPos();
             float distance = (float) Math.hypot(dx, dy);
@@ -235,11 +314,17 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void handleCollision(Player playerA, Player playerB) {
+        if (playerA == null || playerB == null) return;
+        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
+
         float dx = playerA.getXPos() - playerB.getXPos();
         float dy = playerA.getYPos() - playerB.getYPos();
         float distance = (float) Math.hypot(dx, dy);
+        if (distance == 0f) distance = 0.001f;
 
-        vibratePhoneThrottled();
+        int idxA = players.indexOf(playerA);
+        int idxB = players.indexOf(playerB);
+        if (idxA == 0 || idxB == 0) vibratePhoneThrottled();
 
         float pushX = dx / distance;
         float pushY = dy / distance;
@@ -247,7 +332,7 @@ public class GameView extends SurfaceView implements Runnable {
         float speedB = playerB.getSpeed();
 
         if (speedA == speedB) {
-            applyRetroceForBoth(playerA, playerB, pushX, pushY, speedA);
+            applyRetroceForBoth(playerA, playerB, pushX, pushY, Math.max(speedA, speedB));
         } else {
             Player affected = playerA.getSpeed() < playerB.getSpeed() ? playerA : playerB;
             Player faster = playerA.getSpeed() >= playerB.getSpeed() ? playerA : playerB;
@@ -261,8 +346,27 @@ public class GameView extends SurfaceView implements Runnable {
                 final float dyPush = pushY;
                 final float rSpeed = retreatSpeed;
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (affected.isDestroyed()) return;
                     affected.setXPos(affected.getXPos() - dxPush * rSpeed);
                     affected.setYPos(affected.getYPos() - dyPush * rSpeed);
+                    float cx = affected.getXPos() + 25;
+                    float cy = affected.getYPos() + 25;
+                    float dist = (float) Math.hypot(cx - centerX, cy - centerY);
+                    if (dist >= radius) {
+                        if (!affected.isDestroyed()) {
+                            if (gameMode == GameMode.LIVES) {
+                                affected.loseLife();
+                                if (affected.isDestroyed() && !faster.isDestroyed() && faster != affected) {
+                                    faster.addKill();
+                                }
+                            } else {
+                                // TIMER: do not destroy, just addkill
+                                if (!faster.isDestroyed() && faster != affected)
+                                    faster.addKill();
+                            }
+                        }
+                        affected.resetPosition();
+                    }
                     if (step == 10) affected.enableJoystick();
                 }, delay);
             }
@@ -270,6 +374,7 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void applyRetroceForBoth(Player playerA, Player playerB, float pushX, float pushY, float retreatSpeed) {
+        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
         playerA.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
         playerB.setAngle((float) Math.toDegrees(Math.atan2(-pushY, -pushX)));
         playerA.disableJoystick();
@@ -281,6 +386,7 @@ public class GameView extends SurfaceView implements Runnable {
             final float dyPush = pushY;
             final float rSpeed = retreatSpeed;
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (playerA.isDestroyed() || playerB.isDestroyed()) return;
                 playerA.setXPos(playerA.getXPos() + dxPush * rSpeed * 0.1f);
                 playerA.setYPos(playerA.getYPos() + dyPush * rSpeed * 0.1f);
                 playerB.setXPos(playerB.getXPos() - dxPush * rSpeed * 0.1f);
@@ -293,6 +399,27 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
+    private void endMatchWithWinner(Player winner) {
+        ended = true;
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (gameOverListener != null) gameOverListener.onGameOver();
+        });
+    }
+
+    private void endMatchNoWinner() {
+        ended = true;
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (gameOverListener != null) gameOverListener.onGameOver();
+        });
+    }
+
+    private void endMatchAndShowRanking() {
+        ended = true;
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (gameOverListener != null) gameOverListener.onGameOver();
+        });
+    }
+
     private void vibratePhoneThrottled() {
         long now = System.currentTimeMillis();
         if (now - lastVibrationTimeMs < VIBRATION_THROTTLE_MS) return;
@@ -303,7 +430,7 @@ public class GameView extends SurfaceView implements Runnable {
     private void vibratePhone() {
         try {
             Context ctx = getContext();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // API 31+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 VibratorManager vm = (VibratorManager) ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
                 if (vm != null) {
                     Vibrator vibrator = vm.getDefaultVibrator();
@@ -319,7 +446,6 @@ public class GameView extends SurfaceView implements Runnable {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     v.vibrate(VibrationEffect.createOneShot(VIBRATION_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE));
                 } else {
-                    // deprecated but kept for very old devices
                     v.vibrate(VIBRATION_DURATION_MS);
                 }
             }
@@ -357,8 +483,8 @@ public class GameView extends SurfaceView implements Runnable {
         int pointerIndex = event.getActionIndex();
         int pointerId = event.getPointerId(pointerIndex);
 
-        Player player1 = players.get(0);
-        if (player1.isColliding()) return true;
+        Player player1 = (!players.isEmpty()) ? players.get(0) : null;
+        if (player1 == null || player1.isDestroyed()) return true;
 
         switch (action) {
             case MotionEvent.ACTION_DOWN:
@@ -370,7 +496,6 @@ public class GameView extends SurfaceView implements Runnable {
                     joystick.touchDown(x, y);
                 } else if (boostPointerId == -1) {
                     boostPointerId = pointerId;
-                    // la transferencia de carga para boost se maneja en update()
                 }
             } break;
 
@@ -392,7 +517,6 @@ public class GameView extends SurfaceView implements Runnable {
                     joystickPointerId = -1;
                 } else if (pointerId == boostPointerId) {
                     boostPointerId = -1;
-                    // detener inmediatamente cualquier boostStored y efecto
                     boostStoredMs = 0L;
                     boostActive = false;
                 }
