@@ -5,54 +5,76 @@ import android.graphics.Color;
 import android.graphics.Paint;
 
 public class Player {
-    private String name;
+    public String name;
     private float xPos;
     private float yPos;
-    private float initialX;
-    private float initialY;
+    private final float initialX;
+    private final float initialY;
     private float speed;
     private float angle;
-    private float collisionAngle; // Nueva propiedad para la dirección de colisión
-    private boolean isColliding; // Nueva propiedad para estado de colisión
-    private Paint paint;
+    private float collisionAngle; // dirección de colisión
+    private boolean isColliding; // estado de colisión (también usado para bloquear input/movimiento)
+    private final Paint paint;
 
-    private float initialSpeed; // Almacenar velocidad inicial
+    private final float initialSpeed; // velocidad inicial
+
+    // Estado de juego
+    private int lives = 6;
+    private int kills = 0;
+    private boolean destroyed = false; // fuera del juego
 
     public Player(String name, float x, float y, boolean someFlag, int speed) {
         this.name = name;
         this.xPos = x;
         this.yPos = y;
-        this.initialX = x; // Guardar posición inicial
-        this.initialY = y; // Guardar posición inicial
+        this.initialX = x;
+        this.initialY = y;
         this.speed = speed;
-        this.initialSpeed = speed; // Almacenar velocidad inicial
+        this.initialSpeed = speed;
         this.paint = new Paint();
-        this.paint.setColor(Color.BLUE); // Color del jugador
+        this.paint.setColor(Color.BLUE);
+        this.isColliding = false;
+    }
+
+    // helper to draw extra UI (lives)
+    public void drawWithStatus(Canvas canvas) {
+        if (destroyed) return;
+        canvas.drawCircle(xPos, yPos, 25, paint);
+        Paint text = new Paint();
+        text.setColor(Color.BLACK);
+        text.setTextSize(20f);
+        canvas.drawText(String.valueOf(lives), xPos - 6, yPos + 6, text);
     }
 
     public void update() {
-        // Actualizar posición del jugador basado en velocidad y ángulo, a menos que esté en colisión
+        if (destroyed) return; // jugador eliminado no se actualiza
         if (!isColliding) {
-            xPos += Math.cos(Math.toRadians(angle)) * speed; // Actualizar posición X
-            yPos += Math.sin(Math.toRadians(angle)) * speed; // Actualizar posición Y
+            xPos += Math.cos(Math.toRadians(angle)) * speed;
+            yPos += Math.sin(Math.toRadians(angle)) * speed;
         } else {
-            // Aplicar retroceso basado en el ángulo de colisión
-            xPos += Math.cos(Math.toRadians(collisionAngle)) * speed; // Retroceso en X
-            yPos += Math.sin(Math.toRadians(collisionAngle)) * speed; // Retroceso en Y
-            isColliding = false; // Reiniciar estado de colisión después del retroceso
+            // retroceso basado en collisionAngle (usado temporalmente)
+            xPos += Math.cos(Math.toRadians(collisionAngle)) * speed;
+            yPos += Math.sin(Math.toRadians(collisionAngle)) * speed;
+            // no reiniciamos isColliding aquí automáticamente: controlarlo desde quien provoca la colisión
         }
     }
 
     public void setSpeed(float speed) {
+        if (destroyed) return;
         this.speed = speed;
     }
 
     public float getSpeed() {
-        return speed;
+        return destroyed ? 0f : speed;
     }
 
     public void setAngle(float angle) {
+        if (destroyed) return;
         this.angle = angle;
+    }
+
+    public float getAngle() {
+        return angle;
     }
 
     public void setCollisionAngle(float angle) {
@@ -68,13 +90,24 @@ public class Player {
     }
 
     public void draw(Canvas canvas) {
-        canvas.drawCircle(xPos, yPos, 25, paint); // Representación simple como un círculo
+        if (destroyed) return; // no dibujar si eliminado
+        canvas.drawCircle(xPos, yPos, 25, paint);
     }
 
     public void resetPosition() {
-        this.xPos = initialX; // Reiniciar a X inicial
-        this.yPos = initialY; // Reiniciar a Y inicial
-        setColliding(false); // Asegurarse de que el estado de colisión sea falso
+        // Si el jugador está destruido, lo sacamos del área visible para evitar colisiones visuales
+        if (destroyed) {
+            this.xPos = -1000f;
+            this.yPos = -1000f;
+            setColliding(true);
+            setSpeed(0f);
+            return;
+        }
+        this.xPos = initialX;
+        this.yPos = initialY;
+        setColliding(false);
+        // opcional: restaurar velocidad base al resetear (no al morir)
+        this.speed = initialSpeed;
     }
 
     public float getXPos() {
@@ -85,27 +118,80 @@ public class Player {
         return yPos;
     }
 
-    public float getAngle() {
-        return angle; // Retornar ángulo actual del jugador
-    }
-
     public float getInitialSpeed() {
-        return initialSpeed; // Recuperar velocidad inicial
+        return initialSpeed;
     }
 
     public void setColliding(boolean colliding) {
-        isColliding = colliding;
+        if (destroyed) {
+            this.isColliding = true;
+            this.speed = 0f;
+            return;
+        }
+        this.isColliding = colliding;
+        if (colliding) this.speed = 0f; // bloquear movimiento inmediato cuando colisiona
     }
 
     public boolean isColliding() {
-        return isColliding;
+        return isColliding || destroyed;
     }
 
     public void disableJoystick() {
-        isColliding = true; // Prevent movement
+        // marcar como colisionado / sin control
+        isColliding = true;
+        speed = 0f;
     }
 
     public void enableJoystick() {
-        isColliding = false; // Re-enable movement
+        if (destroyed) return;
+        isColliding = false;
+        // no restauramos speed aquí; quien habilite el movimiento puede setSpeed según joystick
+    }
+
+    // Lives / kills API
+    public int getLives() { return lives; }
+    public void setLives(int l) {
+        lives = l;
+        if (l <= 0) markDestroyed();
+    }
+
+    public void loseLife() {
+        if (destroyed) return;
+        if (lives > 0) lives--;
+        if (lives <= 0) {
+            markDestroyed();
+        }
+    }
+
+    private void markDestroyed() {
+        destroyed = true;
+        // asegurar que no pueda moverse ni colisionar con lógica del juego
+        isColliding = true;
+        speed = 0f;
+        // quitar del área visible
+        this.xPos = -1000f;
+        this.yPos = -1000f;
+    }
+
+    public int getKills() { return kills; }
+    public void addKill() {
+        if (destroyed) return;
+        kills++;
+    }
+
+    public boolean isDestroyed() { return destroyed; }
+
+    public void destroy() {
+        markDestroyed();
+    }
+
+    public void reviveToInitial() {
+        destroyed = false;
+        lives = 6;
+        kills = 0;
+        this.xPos = initialX;
+        this.yPos = initialY;
+        this.speed = initialSpeed;
+        this.isColliding = false;
     }
 }

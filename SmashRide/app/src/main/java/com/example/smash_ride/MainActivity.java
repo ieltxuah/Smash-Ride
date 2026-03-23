@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,6 +45,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PREFS = "notification_prefs";
     private static final String KEY_WORK_ID = "work_id";
+    private static final String PREFS_MODE = "game_mode_prefs";
+    private static final String KEY_MODE = "selected_mode"; // "LIVES" or "TIMER"
 
     private static final int REQUEST_CODE_POST_NOTIF = 2001;
 
@@ -52,8 +55,12 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.menu);
 
+        // Establecer por defecto el modo a "LIVES" solo si no existe ya un valor guardado
+        if (!getSharedPreferences(PREFS_MODE, MODE_PRIVATE).contains(KEY_MODE)) {
+            getSharedPreferences(PREFS_MODE, MODE_PRIVATE).edit().putString(KEY_MODE, "LIVES").apply();
+        }
+
         // Solicitar permiso POST_NOTIFICATIONS solo en Android 13+ (API 33).
-        // Para minSdk 31 esto no solicitará nada, pero si compilas/target=33 la solicitud se hará.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -68,6 +75,8 @@ public class MainActivity extends AppCompatActivity {
 
         initializeVariables();
         setupUI();
+        setupModeSelector();
+        updateModeSelectorIcon(); // actualizar icono inicial según modo guardado
         setupTranslator(selectedLanguageCode, TranslateLanguage.ENGLISH);
         downloadModelAndTranslate();
     }
@@ -76,7 +85,6 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_CODE_POST_NOTIF) {
-            // Opcional: comprobar grantResults si quieres mostrar UI; el Worker también verifica permiso antes de notify()
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d("MainActivity", "POST_NOTIFICATIONS granted");
             } else {
@@ -98,6 +106,42 @@ public class MainActivity extends AppCompatActivity {
         setupLanguageSpinner(languageSpinner);
         viewsToTranslate.add(findViewById(R.id.title));
         viewsToTranslate.add(startButton);
+    }
+
+    private void setupModeSelector() {
+        ImageView selector = findViewById(R.id.mode_selector_circle);
+        if (selector == null) return;
+
+        selector.setOnClickListener(v -> {
+            android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this);
+            String[] items = new String[] {"Corazón (Vidas)", "Cronómetro (Tiempo)"};
+            String current = getSharedPreferences(PREFS_MODE, MODE_PRIVATE).getString(KEY_MODE, "LIVES");
+            int checked = "TIMER".equals(current) ? 1 : 0;
+            b.setTitle("Selecciona modo")
+                    .setSingleChoiceItems(items, checked, null)
+                    .setPositiveButton("OK", (d, which) -> {
+                        int sel = ((android.app.AlertDialog)d).getListView().getCheckedItemPosition();
+                        String mode = sel == 1 ? "TIMER" : "LIVES";
+                        getSharedPreferences(PREFS_MODE, MODE_PRIVATE).edit().putString(KEY_MODE, mode).apply();
+                        Toast.makeText(this, "Modo seleccionado: " + mode, Toast.LENGTH_SHORT).show();
+                        updateModeSelectorIcon();
+                    })
+                    .setCancelable(false)
+                    .show();
+        });
+    }
+
+    private void updateModeSelectorIcon() {
+        ImageView selector = findViewById(R.id.mode_selector_circle);
+        if (selector == null) return;
+        String current = getSharedPreferences(PREFS_MODE, MODE_PRIVATE).getString(KEY_MODE, "LIVES");
+        if ("TIMER".equals(current)) {
+            selector.setImageResource(R.drawable.ic_clock);
+            selector.setContentDescription("Modo: Cronómetro");
+        } else {
+            selector.setImageResource(R.drawable.ic_heart);
+            selector.setContentDescription("Modo: Vidas");
+        }
     }
 
     private void setupLanguageSpinner(Spinner spinner) {
@@ -202,6 +246,10 @@ public class MainActivity extends AppCompatActivity {
     private void startGame() {
         Intent intent = new Intent(this, GameActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        // pass selected mode
+        String mode = getSharedPreferences(PREFS_MODE, MODE_PRIVATE).getString(KEY_MODE, "LIVES");
+        intent.putExtra("GAME_MODE", mode);
+        intent.putExtra("OFFLINE", true);
         startActivity(intent);
     }
 
