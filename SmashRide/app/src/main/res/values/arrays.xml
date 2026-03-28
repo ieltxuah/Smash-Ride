@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="supported_lang_labels">
+        <item>English</item>
+        <item>Español</item>
+        <item>Euskara</item>
+        <item>Français</item>
+        <item>Deutsch</item>
+        <item>Italiano</item>
+        <item>中文</item>
+    </string-array>
+
+    <string-array name="supported_lang_codes">
+        <item>en</item>
+        <item>es</item>
+        <item>eu</item>
+        <item>fr</item>
+        <item>de</item>
+        <item>it</item>
+        <item>zh</item>
+    </string-array>
+</resources>

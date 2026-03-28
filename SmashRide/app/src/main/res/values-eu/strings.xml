@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Smash Ride</string>
+    <string name="start_button">Partida hasi</string>
+    <string name="settings_button">Ezarpenak</string>
+    <string name="select_mode">Modua hautatu</string>
+    <string name="mode_lives">Bihotza (Bizitzak)</string>
+    <string name="mode_timer">Denbora (Denbora)</string>
+    <string name="settings_title_language">Hizkuntza</string>
+    <string name="settings_title_sound">Soinua</string>
+    <string name="settings_title_color">Pertsonaia kolorea</string>
+    <string name="save">Gorde</string>
+    <string name="color_red">Gorria</string>
+    <string name="color_blue">Urdina</string>
+    <string name="color_green">Berdea</string>
+    <string name="ok">Ok</string>
+    <string name="mode_selected_toast">" Hautatutako modua: %1\\$s"</string>
+    <string name="menu_title">Jokoaren menu-a</string>
+</resources>
