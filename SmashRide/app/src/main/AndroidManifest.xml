@@ -18,6 +18,9 @@
         android:theme="@style/Theme.SmashRide"
         tools:ignore="LockedOrientationActivity">
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".RankingActivity"
             android:exported="false" />
         <activity
