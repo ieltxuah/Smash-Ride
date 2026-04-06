@@ -4,8 +4,6 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -13,8 +11,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -30,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TranslationManager translationManager;
     private List<View> viewsToTranslate;
-    private Map<Integer, String> originalTextsById; // retained for compatibility if needed
+    private Map<Integer, String> originalTextsById;
 
     private String selectedLangPrefCode; // e.g. "en","es","eu"
 
@@ -49,14 +45,16 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PREFS_SETTINGS = "app_settings";
     private static final String KEY_LANG = "language";
-    private static final String KEY_SOUND = "sound_enabled";
-    private static final String KEY_COLOR = "character_color";
 
     private static final int REQUEST_CODE_POST_NOTIF = 2001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Application already applied locale in MyApplication.onCreate
+        // Es vital aplicar el locale ANTES del super.onCreate y del setContentView
+        SharedPreferences prefsSettings = getSharedPreferences(PREFS_SETTINGS, MODE_PRIVATE);
+        selectedLangPrefCode = prefsSettings.getString(KEY_LANG, "en");
+        LocaleUtils.applyAppLocale(this, selectedLangPrefCode);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.menu);
 
@@ -69,22 +67,22 @@ public class MainActivity extends AppCompatActivity {
         setupModeSelector();
         updateModeSelectorIcon();
 
-        // Setup persistent TranslationManager (initialized in Application)
+        // Setup persistent TranslationManager (must be initialized in Application)
         translationManager = TranslationManager.getInstance();
         translationManager.bindActivity(this);
-
-        // use saved lang from prefs
-        SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, MODE_PRIVATE);
-        selectedLangPrefCode = prefs.getString(KEY_LANG, "en");
-
         translationManager.setTargetFromAppLang(selectedLangPrefCode);
 
-        // Register views after setContentView and after target set
         translationManager.scanAndRegisterViews(findViewById(android.R.id.content));
 
-        // Ensure resources are loaded for current locale, then trigger translations
-        translationManager.reloadTextsFromResources();
-        translationManager.translateIfNeeded();
+        // IMPORTANTE: Si el idioma es uno de tus locales (es, eu),
+        // dile al manager que simplemente recargue desde recursos y NO use ML Kit.
+        if (selectedLangPrefCode.equals("es") || selectedLangPrefCode.equals("eu") || selectedLangPrefCode.equals("en")) {
+            translationManager.reloadTextsFromResources();
+            // Aquí no llames a translateIfNeeded() si el manager no distingue entre local/remoto
+        } else {
+            translationManager.reloadTextsFromResources();
+            translationManager.translateIfNeeded();
+        }
     }
 
     @Override
@@ -93,19 +91,22 @@ public class MainActivity extends AppCompatActivity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, MODE_PRIVATE);
         String newPref = prefs.getString(KEY_LANG, "en");
+
         if (!newPref.equals(selectedLangPrefCode)) {
-            // Update cached code
             selectedLangPrefCode = newPref;
 
-            // Apply locale app-wide via application context to avoid transient resets
-            // MyApplication already applied on startup; here we ensure app resources match new selection
-            // (LocaleUtils is safe to call with application context if needed)
-            LocaleUtils.applyAppLocale(getApplicationContext(), selectedLangPrefCode);
+            // 1. Aplicar el locale globalmente
+            LocaleUtils.applyAppLocale(this, selectedLangPrefCode);
 
-            // reload resources and translate
-            translationManager.reloadTextsFromResources();
-            translationManager.setTargetFromAppLang(selectedLangPrefCode);
-            translationManager.translateIfNeeded();
+            // 2. Notificar al manager para que NO use ML Kit si es un idioma local
+            // Suponiendo que tu TranslationManager tiene lógica para detectar esto:
+            if (translationManager != null) {
+                translationManager.setTargetFromAppLang(selectedLangPrefCode);
+            }
+
+            // 3. Recrear
+            recreate();
+            return;
         }
     }
 
@@ -137,24 +138,27 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupUI() {
         Button startButton = findViewById(R.id.start_button);
-        startButton.setOnClickListener(v -> startGame());
+        if (startButton != null) {
+            startButton.setOnClickListener(v -> startGame());
+        }
 
         Button settingsButton = findViewById(R.id.settings_button);
-        settingsButton.setOnClickListener(v -> {
-            Intent i = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivity(i);
-        });
+        if (settingsButton != null) {
+            settingsButton.setOnClickListener(v -> {
+                Intent i = new Intent(MainActivity.this, SettingsActivity.class);
+                startActivity(i);
+            });
+        }
 
-        viewsToTranslate.add(findViewById(R.id.title));
-        viewsToTranslate.add(findViewById(R.id.start_button));
-        viewsToTranslate.add(findViewById(R.id.settings_button));
+        View vTitle = findViewById(R.id.title);
+        if (vTitle != null) viewsToTranslate.add(vTitle);
+        if (startButton != null) viewsToTranslate.add(startButton);
+        if (settingsButton != null) viewsToTranslate.add(settingsButton);
 
-        // Save original (English) texts from resources as source of truth
         for (View view : viewsToTranslate) {
             String eng = LocaleUtils.getEnglishTextForView(this, view);
             if (eng == null) eng = "";
             originalTextsById.put(view.getId(), eng);
-            // also explicitly register these views with the manager (optional since we scanned root)
             if (translationManager != null) translationManager.registerViews(view);
         }
     }
@@ -164,21 +168,58 @@ public class MainActivity extends AppCompatActivity {
         if (selector == null) return;
 
         selector.setOnClickListener(v -> {
-            android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this);
-            String[] items = new String[] {getString(R.string.mode_lives), getString(R.string.mode_timer)};
-            String current = getSharedPreferences(PREFS_MODE, MODE_PRIVATE).getString(KEY_MODE, "LIVES");
-            int checked = "TIMER".equals(current) ? 1 : 0;
-            b.setTitle(getString(R.string.select_mode))
-                    .setSingleChoiceItems(items, checked, null)
-                    .setPositiveButton(getString(R.string.ok), (d, which) -> {
-                        int sel = ((android.app.AlertDialog)d).getListView().getCheckedItemPosition();
-                        String mode = sel == 1 ? "TIMER" : "LIVES";
-                        getSharedPreferences(PREFS_MODE, MODE_PRIVATE).edit().putString(KEY_MODE, mode).apply();
-                        updateModeSelectorIcon();
-                    })
-                    .setCancelable(false)
-                    .show();
+            // 1. Inflar el layout personalizado
+            View dialogView = getLayoutInflater().inflate(R.layout.dialog_mode_selector, null);
+
+            // 2. Aplicar colores a los iconos (SpriteColorizer)
+            ImageView imgLives = dialogView.findViewById(R.id.img_lives);
+            ImageView imgTimer = dialogView.findViewById(R.id.img_timer);
+            imgLives.setColorFilter(android.graphics.Color.RED, android.graphics.PorterDuff.Mode.SRC_IN);
+            imgTimer.setColorFilter(android.graphics.Color.BLACK, android.graphics.PorterDuff.Mode.SRC_IN);
+
+            // 3. Crear el Diálogo
+            android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                    .setView(dialogView)
+                    .create();
+
+            // 4. Hacer el fondo redondeado (Transparente para ver el drawable)
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+            }
+
+            // --- LÓGICA DE TRADUCCIÓN DEL SELECTOR ---
+            if (translationManager != null) {
+                // Registramos las vistas del diálogo (los TextViews de "Vidas" y "Tiempo")
+                translationManager.scanAndRegisterViews(dialogView);
+
+                if (selectedLangPrefCode.equals("es") || selectedLangPrefCode.equals("eu") || selectedLangPrefCode.equals("en")) {
+                    // Si es un idioma local, forzamos a que lean del strings.xml directamente
+                    // Esto corrige que no se queden en inglés por error
+                    translationManager.reloadTextsFromResources();
+                } else {
+                    // Si es un idioma extranjero (ej. Francés), pedimos a ML Kit que traduzca
+                    translationManager.translateIfNeeded();
+                }
+            }
+
+            // 5. Eventos de clic para guardar el modo
+            dialogView.findViewById(R.id.option_lives).setOnClickListener(v1 -> {
+                saveGameMode("LIVES");
+                dialog.dismiss();
+            });
+
+            dialogView.findViewById(R.id.option_timer).setOnClickListener(v2 -> {
+                saveGameMode("TIMER");
+                dialog.dismiss();
+            });
+
+            dialog.show();
         });
+    }
+
+    private void saveGameMode(String mode) {
+        getSharedPreferences(PREFS_MODE, MODE_PRIVATE).edit().putString(KEY_MODE, mode).apply();
+        updateModeSelectorIcon(); // Actualiza el botón principal
     }
 
     private void updateModeSelectorIcon() {
@@ -193,8 +234,6 @@ public class MainActivity extends AppCompatActivity {
             selector.setContentDescription(getString(R.string.mode_lives));
         }
     }
-
-    // --- The remaining methods copied from your original MainActivity (schedule/cancel/etc) ---
 
     private void startGame() {
         Intent intent = new Intent(this, GameActivity.class);
@@ -220,7 +259,7 @@ public class MainActivity extends AppCompatActivity {
         String workIdString = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_WORK_ID, null);
         if (workIdString != null) {
             try {
-                UUID workId = UUID.fromString(workIdString);
+                java.util.UUID workId = java.util.UUID.fromString(workIdString);
                 WorkManager.getInstance(this).cancelWorkById(workId);
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_WORK_ID).apply();
             } catch (IllegalArgumentException ignored) {}
