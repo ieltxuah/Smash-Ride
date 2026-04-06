@@ -2,14 +2,16 @@ package com.example.smash_ride.translation;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 import android.widget.CompoundButton;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,13 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Singleton TranslationManager intended to live for the lifetime of the application.
- * Call TranslationManager.initialize(appContext) from Application.onCreate().
- * Use getInstance() afterwards.
- *
- * Keeps translator/model loaded across Activities to avoid repeated downloads.
- */
 public class TranslationManager {
     private static final String TAG = "TranslationManager";
     private static TranslationManager instance;
@@ -109,14 +104,32 @@ public class TranslationManager {
         translator = Translation.getClient(options);
     }
 
-    public void registerViews(@NonNull View... views) {
+    public synchronized void registerViews(@NonNull View... views) {
         for (View v : views) {
             if (v == null) continue;
             if (v.getId() == View.NO_ID) continue;
             if (!registeredViews.contains(v)) {
                 registeredViews.add(v);
-                String eng = LocaleUtils.getEnglishTextForView(appCtx, v);
-                if (eng == null) eng = "";
+
+                String eng = "";
+                try {
+                    String resourceName = null;
+                    try { resourceName = appCtx.getResources().getResourceEntryName(v.getId()); } catch (Exception ignored) {}
+                    if (resourceName != null) {
+                        int resId = appCtx.getResources().getIdentifier(resourceName, "string", appCtx.getPackageName());
+                        if (resId != 0) {
+                            Configuration conf = new Configuration(appCtx.getResources().getConfiguration());
+                            conf.setLocale(Locale.ENGLISH);
+                            CharSequence cs = appCtx.createConfigurationContext(conf).getText(resId);
+                            eng = cs == null ? "" : cs.toString();
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                if (eng == null || eng.isEmpty()) {
+                    eng = LocaleUtils.getViewTextFallback(v);
+                }
+
                 originalEnglishById.put(v.getId(), eng);
             }
         }
@@ -130,10 +143,7 @@ public class TranslationManager {
             if (v == null) continue;
             if (v.getId() != View.NO_ID && (v instanceof TextView || v instanceof Button || v instanceof CompoundButton)) {
                 if (!registeredViews.contains(v)) {
-                    registeredViews.add(v);
-                    String eng = LocaleUtils.getEnglishTextForView(appCtx, v);
-                    if (eng == null) eng = "";
-                    originalEnglishById.put(v.getId(), eng);
+                    registerViews(v);
                 }
             }
             if (v instanceof android.view.ViewGroup) {
@@ -167,8 +177,13 @@ public class TranslationManager {
         if (translator == null) return;
         List<View> snapshot = new ArrayList<>(registeredViews);
         for (View view : snapshot) {
-            String sourceText = LocaleUtils.getEnglishTextForView(appCtx, view);
-            if (sourceText == null) sourceText = originalEnglishById.getOrDefault(view.getId(), "");
+            String sourceText = originalEnglishById.get(view.getId());
+            if (sourceText == null || sourceText.isEmpty()) {
+                sourceText = LocaleUtils.getEnglishTextForView(appCtx, view);
+                if (sourceText == null || sourceText.isEmpty()) {
+                    sourceText = LocaleUtils.getViewTextFallback(view);
+                }
+            }
             translateTextToView(sourceText, view);
         }
     }
@@ -188,12 +203,28 @@ public class TranslationManager {
                 });
     }
 
+    private String getCurrentAppLangFromPrefs() {
+        try {
+            SharedPreferences prefs = appCtx.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            return prefs.getString("language", "en");
+        } catch (Exception e) {
+            return "en";
+        }
+    }
+
     private String getLocalizedOrOriginalForView(View view) {
         try {
-            Resources res = appCtx.getResources();
-            String resName = res.getResourceEntryName(view.getId());
-            int resId = res.getIdentifier(resName, "string", appCtx.getPackageName());
-            if (resId != 0) return appCtx.getString(resId);
+            String appLang = getCurrentAppLangFromPrefs();
+            Activity a = boundActivityRef == null ? null : boundActivityRef.get();
+            Context baseCtx = (a != null) ? a : appCtx;
+            Context localized = LocaleUtils.applyAppLocale(baseCtx, appLang);
+            Resources res = localized.getResources();
+            String resName = null;
+            try { resName = res.getResourceEntryName(view.getId()); } catch (Exception ignored) {}
+            if (resName != null) {
+                int resId = res.getIdentifier(resName, "string", baseCtx.getPackageName());
+                if (resId != 0) return localized.getString(resId);
+            }
         } catch (Exception ignored) {}
         String orig = originalEnglishById.get(view.getId());
         return orig != null ? orig : "";
@@ -219,15 +250,23 @@ public class TranslationManager {
     }
 
     public void restoreFromResources() {
+        String appLang = getCurrentAppLangFromPrefs();
+        Activity a = boundActivityRef == null ? null : boundActivityRef.get();
+        Context baseCtx = (a != null) ? a : appCtx;
+        Context localized = LocaleUtils.applyAppLocale(baseCtx, appLang);
+        Resources res = localized.getResources();
+
         for (View view : new ArrayList<>(registeredViews)) {
             try {
-                Resources res = appCtx.getResources();
-                String resName = res.getResourceEntryName(view.getId());
-                int resId = res.getIdentifier(resName, "string", appCtx.getPackageName());
-                if (resId != 0) {
-                    final String localized = appCtx.getString(resId);
-                    postUpdateViewText(view, localized);
-                    continue;
+                String resName = null;
+                try { resName = res.getResourceEntryName(view.getId()); } catch (Exception ignored) {}
+                if (resName != null) {
+                    int resId = res.getIdentifier(resName, "string", baseCtx.getPackageName());
+                    if (resId != 0) {
+                        final String localizedStr = localized.getString(resId);
+                        postUpdateViewText(view, localizedStr);
+                        continue;
+                    }
                 }
             } catch (Exception ignored) {}
             String orig = originalEnglishById.get(view.getId());
@@ -253,6 +292,7 @@ public class TranslationManager {
 
     public String getStringForResId(int resId) {
         try {
+            if (resId == 0) return "";
             return appCtx.getString(resId);
         } catch (Exception e) {
             return "";
