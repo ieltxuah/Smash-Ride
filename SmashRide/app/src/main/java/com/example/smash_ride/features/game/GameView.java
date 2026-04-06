@@ -1,4 +1,4 @@
-package com.example.smash_ride;
+package com.example.smash_ride.features.game;
 
 import android.content.Context;
 import android.graphics.Canvas;

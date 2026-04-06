@@ -1,4 +1,4 @@
-package com.example.smash_ride;
+package com.example.smash_ride.features.ranking;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -6,11 +6,10 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+
+import com.example.smash_ride.R;
+import com.example.smash_ride.features.main.MainActivity;
 
 import java.util.ArrayList;
 import java.util.Collections;

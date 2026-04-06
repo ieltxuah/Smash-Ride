@@ -1,4 +1,4 @@
-package com.example.smash_ride;
+package com.example.smash_ride.features.game;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -92,6 +92,14 @@ public class Player {
     public void draw(Canvas canvas) {
         if (destroyed) return; // no dibujar si eliminado
         canvas.drawCircle(xPos, yPos, 25, paint);
+
+//        // Cómo usarlo (ejemplo en Activity o donde cargues sprites):
+//        Bitmap original = BitmapFactory.decodeResource(getResources(), R.drawable.star_sprite);
+//
+//        // Ejemplos de hues: rojo ~0, verde ~120, azul ~240
+//        Bitmap rojo   = SpriteColorizer.recolorByHue(original, 0f, Color.rgb(96,24,0), 20f);
+//        Bitmap verde  = SpriteColorizer.recolorByHue(original, 120f, Color.rgb(96,24,0), 20f);
+//        Bitmap azul   = SpriteColorizer.recolorByHue(original, 240f, Color.rgb(96,24,0), 20f);
     }
 
     public void resetPosition() {

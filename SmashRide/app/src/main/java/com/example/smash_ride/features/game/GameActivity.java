@@ -1,11 +1,17 @@
-package com.example.smash_ride;
+package com.example.smash_ride.features.game;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.smash_ride.R;
+import com.example.smash_ride.features.ranking.RankingActivity;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,11 +27,18 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     private float radius;
     private GameView.GameMode selectedMode = GameView.GameMode.LIVES;
     private boolean offlineMode = true;
+    private boolean isGameRunning = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_game);
+
+        // Estado inicial del juego
+        isGameRunning = true;
+
+        // CONFIGURACIÓN DEL BLOQUEO DEL BOTÓN ATRÁS
+        setupBackPressBlocker();
 
         loadingLayout = findViewById(R.id.loading_layout);
         players = new ArrayList<>();
@@ -38,6 +51,24 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
 
         initializePlayers();
     }
+
+    private void setupBackPressBlocker() {
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Si el juego está corriendo, ignoramos la acción
+                if (!isGameRunning) {
+                    // Si el juego terminó o está pausado, permitimos salir
+                    setEnabled(false); // Desactiva este callback
+                    getOnBackPressedDispatcher().onBackPressed(); // Ejecuta la acción normal
+                }
+            }
+        };
+
+        // Añadimos el callback al dispatcher de la actividad
+        getOnBackPressedDispatcher().addCallback(this, callback);
+    }
+
 
     private void initializePlayers() {
         new Thread(() -> {
@@ -74,6 +105,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
 
     @Override
     public void onGameOver() {
+        isGameRunning = false;
         if (gameView != null) {
             gameView.pause();
         }

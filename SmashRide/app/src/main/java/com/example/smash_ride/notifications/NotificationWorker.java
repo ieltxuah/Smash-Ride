@@ -1,4 +1,4 @@
-package com.example.smash_ride;
+package com.example.smash_ride.notifications;
 
 import android.Manifest;
 import android.app.PendingIntent;
@@ -14,6 +14,10 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
+
+import com.example.smash_ride.features.main.MainActivity;
+import com.example.smash_ride.MyApplication;
+import com.example.smash_ride.R;
 
 public class NotificationWorker extends Worker {
     private static final int NOTIF_ID = 1001;
