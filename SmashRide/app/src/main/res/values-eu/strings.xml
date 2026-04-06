@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Smash Ride</string>
+    <string name="menu_title">Jokoaren menua</string>
     <string name="start_button">Partida hasi</string>
     <string name="settings_button">Ezarpenak</string>
     <string name="select_mode">Modua hautatu</string>
@@ -14,6 +15,8 @@
     <string name="color_blue">Urdina</string>
     <string name="color_green">Berdea</string>
     <string name="ok">Ok</string>
-    <string name="mode_selected_toast">" Hautatutako modua: %1\\$s"</string>
-    <string name="menu_title">Jokoaren menu-a</string>
+    <string name="mode_selector_desc">Modu aukeratzailea</string>
+    <string name="mode_lives_explain">Bizitzak: saiakera kopuru mugatu bat duzu jokoak amaitu arte.</string>
+    <string name="mode_timer_explain">Denbora: ordutegian jolasten duzu denbora-kontagailuak zero-ra iritsi arte.</string>
+    <string name="how_mode_works">Nola funtzionatzen duen</string>
 </resources>

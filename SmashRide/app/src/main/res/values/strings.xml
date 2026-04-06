@@ -14,5 +14,8 @@
     <string name="color_blue">Blue</string>
     <string name="color_green">Green</string>
     <string name="ok">OK</string>
-    <string name="mode_selected_toast">Mode selected: %1$s</string>
+    <string name="mode_selector_desc">Mode selector</string>
+    <string name="mode_lives_explain">Lives: you have a limited number of attempts before the game ends.</string>
+    <string name="mode_timer_explain">Time: play against the clock until the timer reaches zero.</string>
+    <string name="how_mode_works">How it works</string>
 </resources>
