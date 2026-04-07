@@ -2,7 +2,6 @@ package com.example.smash_ride.features.main;
 
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.View;
@@ -12,6 +11,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smash_ride.R;
+import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.constants.AppConstants; // Importante
 import com.example.smash_ride.core.graphics.SpriteColorizer;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.notifications.NotificationScheduler;
@@ -30,16 +31,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+
+        // 1. Aplicar idioma y cargar configuración
         currentLang = prefHelper.getLanguage();
         LocaleUtils.applyAppLocale(this, currentLang);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.menu);
 
+        // 2. Notificaciones y permisos
         notificationScheduler = new NotificationScheduler(this);
         notificationScheduler.requestPermissions(this, 2001);
         notificationScheduler.cancelPendingReminder();
 
+        // 3. Sistema de traducción y UI
         initTranslation();
         setupUI();
     }
@@ -69,16 +74,17 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, SettingsActivity.class)));
 
         findViewById(R.id.mode_selector_circle).setOnClickListener(v -> showModeDialog());
+
+        // Aseguramos que el icono sea correcto según lo guardado
         updateModeIcon();
     }
 
     private void showModeDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_mode_selector, null);
 
-        // Estilizar iconos
+        // Estilizar iconos con SpriteColorizer
         ImageView imgLives = dialogView.findViewById(R.id.img_lives);
         ImageView imgTimer = dialogView.findViewById(R.id.img_timer);
-
         SpriteColorizer.tintImageView(imgLives, Color.RED);
         SpriteColorizer.tintImageView(imgTimer, Color.BLACK);
 
@@ -86,16 +92,19 @@ public class MainActivity extends AppCompatActivity {
         applyTranslationLogic();
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(dialogView).create();
-        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
 
+        // Selección de modo usando constantes para evitar errores
         dialogView.findViewById(R.id.option_lives).setOnClickListener(v -> {
-            prefHelper.setGameMode("LIVES");
+            prefHelper.setGameMode(AppConstants.MODE_LIVES);
             updateModeIcon();
             dialog.dismiss();
         });
 
         dialogView.findViewById(R.id.option_timer).setOnClickListener(v -> {
-            prefHelper.setGameMode("TIMER");
+            prefHelper.setGameMode(AppConstants.MODE_TIMER);
             updateModeIcon();
             dialog.dismiss();
         });
@@ -105,8 +114,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateModeIcon() {
         ImageButton selector = findViewById(R.id.mode_selector_circle);
+        if (selector == null) return;
+
         String mode = prefHelper.getGameMode();
-        boolean isTimer = "TIMER".equals(mode);
+
+        // Comprobación lógica basada en constantes
+        boolean isTimer = AppConstants.MODE_TIMER.equals(mode);
 
         selector.setImageResource(isTimer ? R.drawable.ic_clock : R.drawable.ic_heart);
         selector.setContentDescription(getString(isTimer ? R.string.mode_timer : R.string.mode_lives));
@@ -115,15 +128,29 @@ public class MainActivity extends AppCompatActivity {
     private void startGame() {
         Intent intent = new Intent(this, GameActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        intent.putExtra("GAME_MODE", prefHelper.getGameMode());
-        intent.putExtra("OFFLINE", true);
+
+        // Pasamos el modo de juego exacto que tiene el PreferenceHelper
+        intent.putExtra(AppConstants.EXTRA_GAME_MODE, prefHelper.getGameMode());
+        intent.putExtra(AppConstants.EXTRA_OFFLINE, true);
+
         startActivity(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Al entrar a cualquier pantalla de menú, suena música de menú
+        SoundManager.getInstance().playMenuMusic(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!prefHelper.getLanguage().equals(currentLang)) recreate();
+        SoundManager.getInstance().playMenuMusic(this);
+        // Si el idioma cambió en Settings, recreamos la actividad
+        if (!prefHelper.getLanguage().equals(currentLang)) {
+            recreate();
+        }
     }
 
     @Override

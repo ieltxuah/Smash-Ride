@@ -13,6 +13,8 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import com.example.smash_ride.core.audio.SoundManager;
+
 import java.util.List;
 
 public class GameView extends SurfaceView implements Runnable {
@@ -401,6 +403,11 @@ public class GameView extends SurfaceView implements Runnable {
 
     private void endMatchWithWinner(Player winner) {
         ended = true;
+        isPlaying = false;
+
+        // Al terminar el juego, volvemos a la música de menú
+        SoundManager.getInstance().playMenuMusic(getContext());
+
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
@@ -408,6 +415,11 @@ public class GameView extends SurfaceView implements Runnable {
 
     private void endMatchNoWinner() {
         ended = true;
+        isPlaying = false;
+
+        // Al terminar el juego, volvemos a la música de menú
+        SoundManager.getInstance().playMenuMusic(getContext());
+
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
@@ -415,6 +427,11 @@ public class GameView extends SurfaceView implements Runnable {
 
     private void endMatchAndShowRanking() {
         ended = true;
+        isPlaying = false;
+
+        // Al terminar el juego, volvemos a la música de menú
+        SoundManager.getInstance().playMenuMusic(getContext());
+
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
@@ -458,6 +475,10 @@ public class GameView extends SurfaceView implements Runnable {
         isPlaying = true;
         gameThread = new Thread(this);
         gameThread.start();
+
+        // REGLA ARQUITECTÓNICA: La música de juego empieza AQUÍ,
+        // cuando el hilo de ejecución del juego arranca de verdad.
+        SoundManager.getInstance().playGameMusic(getContext());
     }
 
     public void pause() {
@@ -467,10 +488,10 @@ public class GameView extends SurfaceView implements Runnable {
                 gameThread.join();
             } catch (InterruptedException e) {
                 Log.e("GameView", "Error while pausing: " + e.getMessage());
-            } finally {
-                gameThread = null;
             }
         }
+        // Pausamos la música si el juego se pausa
+        SoundManager.getInstance().pauseMusic();
     }
 
     public void setGameOverListener(GameOverListener listener) {

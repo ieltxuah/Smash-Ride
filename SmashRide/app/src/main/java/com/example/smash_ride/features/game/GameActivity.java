@@ -10,6 +10,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smash_ride.R;
+import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.features.ranking.RankingActivity;
 
 import java.util.ArrayList;
@@ -141,6 +142,8 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     @Override
     protected void onResume() {
         super.onResume();
+        // Reanudamos la música al volver
+        SoundManager.getInstance().resumeMusic();
         if (gameView != null) {
             gameView.resume();
         }
@@ -149,6 +152,8 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     @Override
     protected void onPause() {
         super.onPause();
+        // Pausamos la música de juego si la app se minimiza
+        SoundManager.getInstance().pauseMusic();
         if (gameView != null) {
             gameView.pause();
             if (players != null && players.size() > 0) {
@@ -157,5 +162,12 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
             }
             finish();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Al cerrar el juego y volver al menú, restauramos la música de menú
+        SoundManager.getInstance().playMenuMusic(this);
     }
 }

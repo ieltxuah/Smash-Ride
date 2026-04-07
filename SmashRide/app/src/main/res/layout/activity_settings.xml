@@ -23,18 +23,36 @@
             android:layout_marginTop="8dp"/>
 
         <TextView
-            android:id="@+id/settings_label_sound"
+            android:id="@+id/settings_label_music"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/settings_title_sound"
+            android:text="Música de Fondo"
             android:textStyle="bold"
             android:layout_marginTop="16dp"/>
 
-        <Switch
-            android:id="@+id/settings_sound_switch"
+        <SeekBar
+            android:id="@+id/settings_music_seekbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="4"
+            android:progress="2" /> <!-- Nivel 3 por defecto -->
+
+        <TextView
+            android:id="@+id/settings_label_effects"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"/>
+            android:text="Efectos de Sonido"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+
+        <SeekBar
+            android:id="@+id/settings_effects_seekbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="4"
+            android:progress="2" />
 
         <TextView
             android:id="@+id/settings_label_color"
