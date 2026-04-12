@@ -11,6 +11,7 @@ public class SoundManager {
     private static SoundManager instance;
     private MediaPlayer bgmPlayer;
     private int currentResource = -1;
+    private boolean isPausedBySystem = false;
 
     private SoundManager() {}
 
@@ -20,31 +21,42 @@ public class SoundManager {
     }
 
     public void playMenuMusic(Context context) {
-        playMusic(context, R.raw.bgm_menu); // Asegúrate que el archivo se llame bgm_menu.mp3
+        // bgm_menu es la misma para Main y Settings, así que fluirá sin cortes
+        playMusic(context, R.raw.bgm_menu);
     }
 
     public void playGameMusic(Context context) {
-        playMusic(context, R.raw.bgm_game); // Asegúrate que el archivo se llame bgm_game.mp3
+        playMusic(context, R.raw.bgm_game);
     }
 
     private void playMusic(Context context, int resId) {
-        if (currentResource == resId && bgmPlayer != null && bgmPlayer.isPlaying()) return;
+        // --- CLAVE PARA LA FLUIDEZ ---
+        // Si ya tenemos cargado el mismo recurso:
+        if (currentResource == resId && bgmPlayer != null) {
+            if (!bgmPlayer.isPlaying()) {
+                bgmPlayer.start(); // Simplemente reanudamos si estaba pausado
+                Log.d(TAG, "Música reanudada (mismo recurso)");
+                isPausedBySystem = false;
+            }
+            return; // Salimos sin destruir nada para que no haya micro-cortes
+        }
 
         try {
+            // Solo destruimos el anterior si el recurso es REALMENTE diferente (ej: pasar de menú a juego)
             stopMusic();
+
             currentResource = resId;
-            // IMPORTANTE: Usar getApplicationContext() para evitar fugas de memoria
             bgmPlayer = MediaPlayer.create(context.getApplicationContext(), resId);
 
             if (bgmPlayer == null) {
-                Log.e(TAG, "Error: No se pudo crear el MediaPlayer para el recurso: " + resId);
+                Log.e(TAG, "Error: No se pudo crear el MediaPlayer");
                 return;
             }
 
             bgmPlayer.setLooping(true);
             updateVolume(context);
             bgmPlayer.start();
-            Log.d(TAG, "Música iniciada correctamente");
+            Log.d(TAG, "Nueva música iniciada: " + resId);
         } catch (Exception e) {
             Log.e(TAG, "Error al reproducir música: " + e.getMessage());
         }
@@ -52,32 +64,44 @@ public class SoundManager {
 
     public void updateVolume(Context context) {
         if (bgmPlayer == null) return;
-
         PreferenceHelper pref = new PreferenceHelper(context);
-        int level = pref.getMusicVolume(); // 0, 1, 2, 3, 4
-
-        // Android usa escala 0.0 a 1.0. Si level es 0, volumen es 0.
-        // Si level es 4, volumen es 1.0.
-        float vol = level * 0.25f;
-
-        Log.d(TAG, "Cambiando volumen a nivel: " + level + " (float: " + vol + ")");
+        float vol = pref.getMusicVolume() * 0.25f;
         bgmPlayer.setVolume(vol, vol);
     }
 
     public void stopMusic() {
         if (bgmPlayer != null) {
-            if (bgmPlayer.isPlaying()) bgmPlayer.stop();
-            bgmPlayer.release();
+            try {
+                if (bgmPlayer.isPlaying()) bgmPlayer.stop();
+                bgmPlayer.release();
+            } catch (Exception e) {
+                Log.e(TAG, "Error al liberar MediaPlayer: " + e.getMessage());
+            }
             bgmPlayer = null;
             currentResource = -1;
         }
     }
 
     public void pauseMusic() {
-        if (bgmPlayer != null && bgmPlayer.isPlaying()) bgmPlayer.pause();
+        if (bgmPlayer != null && bgmPlayer.isPlaying()) {
+            bgmPlayer.pause();
+            isPausedBySystem = true;
+        }
     }
 
     public void resumeMusic() {
-        if (bgmPlayer != null && !bgmPlayer.isPlaying()) bgmPlayer.start();
+        // Solo reanudamos si hay algo cargado y no está sonando
+        if (bgmPlayer != null && !bgmPlayer.isPlaying() && isPausedBySystem) {
+            bgmPlayer.start();
+            isPausedBySystem = false;
+        }
+    }
+
+    public boolean isMusicPlaying() {
+        try {
+            return bgmPlayer != null && bgmPlayer.isPlaying();
+        } catch (IllegalStateException e) {
+            return false;
+        }
     }
 }
