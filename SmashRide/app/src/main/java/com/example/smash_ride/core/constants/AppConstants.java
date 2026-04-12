@@ -26,4 +26,19 @@ public class AppConstants {
     // Valores por defecto
     public static final String DEFAULT_LANG = "en";
     public static final int DEFAULT_VOLUME_LEVEL = 2;
+
+    // Carousel de colores de personaje
+    public static final String[] CAROUSEL_COLORS = {
+            "rojo", "verde", "azul", "dorado", "plata", "morado", "naranja"
+    };
+
+    public static final int[] CAROUSEL_HEX = {
+            0xFFFF5252, // Rojo (Suave/Pastel para evitar saturación)
+            0xFF2ECC71, // Verde (Esmeralda)
+            0xFF2979FF, // Azul: Azul Eléctrico Puro (Corregido para evitar verde)
+            0xFFFACD05, // Dorado (Amarillo Cálido)
+            0xFFCFD8DC, // Plata: Gris Acero Azulado (Corregido para eliminar amarillo)
+            0xFFB159FF, // Morado: Púrpura Vibrante (Corregido para evitar rojo)
+            0xFFFF9100  // Naranja (Vibrante)
+    };
 }

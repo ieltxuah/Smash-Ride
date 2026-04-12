@@ -1,54 +1,132 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:background="#000000">
 
+    <!-- FONDOS: Capas base -->
+    <ImageView
+        android:id="@+id/background_static"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/background_stars_static" />
+
+    <ImageView
+        android:id="@+id/background_gif"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <!-- TÍTULO: Bajado significativamente (160dp) para dar aire al arte superior -->
     <TextView
         android:id="@+id/title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/menu_title"
-        android:textSize="24sp"
-        android:textStyle="bold"
+        android:layout_marginTop="160dp"
         android:gravity="center"
+        android:letterSpacing="0.2"
+        android:shadowColor="#FF000000"
+        android:shadowDx="6"
+        android:shadowDy="6"
+        android:shadowRadius="4"
+        android:text="@string/app_name"
+        android:textAllCaps="true"
+        android:textColor="#FFFFFF"
+        android:textSize="58sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="100dp"/>
+        tools:text="SMASH RIDE" />
 
-    <Button
-        android:id="@+id/start_button"
-        android:layout_width="200dp"
-        android:layout_height="56dp"
-        android:text="@string/start_button"
-        app:layout_constraintTop_toBottomOf="@id/title"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="30dp"/>
-
-    <Button
-        android:id="@+id/settings_button"
+    <!-- CONTENEDOR: Posicionado en la zona de interacción de los pulgares (Thumb Zone) -->
+    <LinearLayout
+        android:id="@+id/button_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/settings_button"
-        app:layout_constraintTop_toBottomOf="@id/start_button"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="12dp"/>
-
-    <ImageButton
-        android:id="@+id/mode_selector_circle"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_margin="16dp"
-        android:background="@drawable/circle_background"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_heart"
-        android:contentDescription="@string/mode_selector_desc"
+        android:gravity="center"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/title"
+        app:layout_constraintVertical_bias="0.75">
 
+        <!-- FILA DE ACCIÓN PRINCIPAL (Start + Modo) -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="40dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/start_button"
+                android:layout_width="220dp"
+                android:layout_height="84dp"
+                android:backgroundTint="#4CAF50"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:letterSpacing="0.15"
+                android:text="@string/start_button"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                app:cornerRadius="16dp"
+                app:elevation="12dp" />
+
+            <ImageButton
+                android:id="@+id/mode_selector_circle"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/circle_background"
+                android:elevation="12dp"
+                android:padding="20dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_heart"
+                app:tint="@android:color/white" />
+        </LinearLayout>
+
+        <!-- BOTÓN RANKING -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ranking_button"
+            android:layout_width="280dp"
+            android:layout_height="68dp"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="#FFD700"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0.1"
+            android:text="@string/ranking_button"
+            android:textColor="#212121"
+            android:textSize="22sp"
+            app:cornerRadius="14dp"
+            app:icon="@drawable/ic_trophy"
+            app:iconGravity="textStart"
+            app:iconPadding="16dp"
+            app:iconSize="28dp"
+            app:iconTint="#212121" />
+
+        <!-- BOTÓN AJUSTES -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settings_button"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="280dp"
+            android:layout_height="68dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0.1"
+            android:text="@string/settings_button"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            app:cornerRadius="14dp"
+            app:strokeColor="#FFFFFF"
+            app:strokeWidth="2dp" />
+
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

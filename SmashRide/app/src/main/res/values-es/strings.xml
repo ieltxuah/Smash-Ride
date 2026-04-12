@@ -4,19 +4,20 @@
     <string name="menu_title">Menú del juego</string>
     <string name="start_button">Iniciar partida</string>
     <string name="settings_button">Ajustes</string>
+    <string name="ranking_button">Clasificacion</string>
     <string name="select_mode">Seleccionar modo</string>
     <string name="mode_lives">Corazón (Vidas)</string>
     <string name="mode_timer">Temporizador (Tiempo)</string>
     <string name="settings_title_language">Idioma</string>
-    <string name="settings_title_sound">Sonido</string>
-    <string name="settings_title_color">Color del personaje</string>
-    <string name="save">Guardar</string>
-    <string name="color_red">Rojo</string>
-    <string name="color_blue">Azul</string>
-    <string name="color_green">Verde</string>
-    <string name="ok">Ok</string>
+    <string name="settings_label_music">Música de Fondo</string>
+    <string name="settings_label_effects">Efectos de Sonido</string>
+    <string name="settings_title_color">Color del Personaje</string>
+    <string name="save">Guardar cambios</string>
     <string name="mode_selector_desc">Selector de modo</string>
-    <string name="mode_lives_explain">Vidas: tienes un número limitado de intentos antes de que termine la partida.</string>
-    <string name="mode_timer_explain">Tiempo: juegas contra el reloj hasta que el temporizador llegue a cero.</string>
-    <string name="how_mode_works">Cómo funciona</string>
+    <!-- Colores para el Carrusel -->
+    <string name="color_gold">DORADO</string>
+    <string name="color_orange">NARANJA</string>
+    <string name="color_silver">PLATA</string>
+    <string name="color_red">ROJO</string>
+    <string name="color_blue">AZUL</string>
 </resources>

@@ -26,7 +26,7 @@
             android:id="@+id/settings_label_music"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Música de Fondo"
+            android:text="@string/settings_label_music"
             android:textStyle="bold"
             android:layout_marginTop="16dp"/>
 
@@ -42,7 +42,7 @@
             android:id="@+id/settings_label_effects"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Efectos de Sonido"
+            android:text="@string/settings_label_effects"
             android:textStyle="bold"
             android:layout_marginTop="16dp"/>
 
@@ -62,33 +62,15 @@
             android:textStyle="bold"
             android:layout_marginTop="16dp"/>
 
-        <RadioGroup
-            android:id="@+id/settings_color_group"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/color_carousel_rv"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
-
-            <RadioButton
-                android:id="@+id/color_red"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/color_red"
-                android:tag="red"/>
-
-            <RadioButton
-                android:id="@+id/color_blue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/color_blue"
-                android:tag="blue"/>
-
-            <RadioButton
-                android:id="@+id/color_green"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/color_green"
-                android:tag="green"/>
-        </RadioGroup>
+            android:layout_height="120dp"
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:paddingStart="100dp"
+            android:paddingEnd="100dp"
+            android:orientation="horizontal" />
 
         <LinearLayout
             android:orientation="horizontal"

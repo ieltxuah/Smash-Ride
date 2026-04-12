@@ -1,21 +1,28 @@
 package com.example.smash_ride.features.settings;
 
 import android.content.Intent;
+import android.graphics.PorterDuff;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.LinearSnapHelper;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
@@ -26,63 +33,94 @@ import java.util.Arrays;
 
 public class SettingsActivity extends AppCompatActivity {
 
+    private static final String TAG = "DEBUG_TRANSLATION";
     private TranslationManager translationManager;
     private PreferenceHelper prefHelper;
 
     private Spinner langSpinner;
     private SeekBar musicSeekBar;
     private SeekBar effectsSeekBar;
-    private RadioGroup colorGroup;
+    private RecyclerView carouselRv;
 
     private String[] labels;
     private String[] codes;
-    private ArrayAdapter<String> adapter;
+    private String selectedColorTag = "dorado";
+    private String currentLang;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+        currentLang = prefHelper.getLanguage();
 
-        // 1. Aplicar Localización antes de inflar
-        LocaleUtils.applyAppLocale(this, prefHelper.getLanguage());
+        // 1. Aplicar el idioma al contexto antes de inflar la vista
+        LocaleUtils.applyAppLocale(this, currentLang);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        // 2. Inicializar Traductor
+        // 2. Configurar el TranslationManager
         translationManager = TranslationManager.getInstance();
         translationManager.bindActivity(this);
-        translationManager.setTargetFromAppLang(prefHelper.getLanguage());
 
-        // 3. Configurar UI
         initViews();
         loadSettings();
-        setupTranslationListener();
+        setupColorCarousel();
 
-        // Registrar vistas para traducción
-        translationManager.scanAndRegisterViews(findViewById(android.R.id.content));
-        translationManager.reloadTextsFromResources();
-        translationManager.translateIfNeeded();
+        // 3. Iniciar secuencia de traducción
+        initTranslation();
+    }
+
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
+        }
+    }
+
+    private boolean isNativeLanguage(String lang) {
+        return lang.equals("es") || lang.equals("eu") || lang.equals("en");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SoundManager.getInstance().resumeMusic();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SoundManager.getInstance().pauseMusic();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (translationManager != null) {
+            translationManager.unbindActivity();
+        }
     }
 
     private void initViews() {
         langSpinner = findViewById(R.id.settings_language_spinner);
-        musicSeekBar = findViewById(R.id.settings_music_seekbar); // ID sugerido en XML
-        effectsSeekBar = findViewById(R.id.settings_effects_seekbar); // ID sugerido en XML
-        colorGroup = findViewById(R.id.settings_color_group);
+        musicSeekBar = findViewById(R.id.settings_music_seekbar);
+        effectsSeekBar = findViewById(R.id.settings_effects_seekbar);
         Button saveButton = findViewById(R.id.settings_save_button);
 
-        // Configurar SeekBars para 5 niveles (0 a 4)
         musicSeekBar.setMax(4);
         effectsSeekBar.setMax(4);
 
-        // EVENTO PARA LA MÚSICA: Cambio en tiempo real
+        // Listener Música
         musicSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
-                    // Guardamos temporalmente en el helper
                     prefHelper.setMusicVolume(progress);
-                    // Actualizamos el SoundManager para que el usuario oiga el cambio
                     SoundManager.getInstance().updateVolume(SettingsActivity.this);
                 }
             }
@@ -90,23 +128,22 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // EVENTO PARA EFECTOS: Aquí podrías reproducir un "beep" de prueba
+        // Listener Efectos
         effectsSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
                     prefHelper.setEffectsVolume(progress);
-                    // Aquí podrías llamar a un SoundManager.playTestSound()
                 }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // Configurar Spinner
         labels = getResources().getStringArray(R.array.supported_lang_labels);
         codes = getResources().getStringArray(R.array.supported_lang_codes);
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>(Arrays.asList(labels)));
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>(Arrays.asList(labels)));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         langSpinner.setAdapter(adapter);
 
@@ -114,95 +151,110 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void loadSettings() {
-        // Cargar Idioma
-        String curLang = prefHelper.getLanguage();
         for (int i = 0; i < codes.length; i++) {
-            if (codes[i].equals(curLang)) {
+            if (codes[i].equals(currentLang)) {
                 langSpinner.setSelection(i);
                 break;
             }
         }
-
-        // Cargar Niveles de Sonido (0-4)
         musicSeekBar.setProgress(prefHelper.getMusicVolume());
         effectsSeekBar.setProgress(prefHelper.getEffectsVolume());
+        selectedColorTag = prefHelper.getCharacterColor();
+    }
 
-        // Cargar Color
-        String curColor = prefHelper.getCharacterColor();
-        for (int i = 0; i < colorGroup.getChildCount(); i++) {
-            View child = colorGroup.getChildAt(i);
-            if (child instanceof RadioButton && curColor.equals(child.getTag())) {
-                ((RadioButton) child).setChecked(true);
+    private void setupColorCarousel() {
+        carouselRv = findViewById(R.id.color_carousel_rv);
+        if (carouselRv == null) return;
+
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        int itemWidth = (int) (120 * displayMetrics.density);
+        int padding = (displayMetrics.widthPixels / 2) - (itemWidth / 2);
+
+        carouselRv.setPadding(padding, 0, padding, 0);
+        carouselRv.setClipToPadding(false);
+
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false);
+        carouselRv.setLayoutManager(layoutManager);
+        carouselRv.setAdapter(new ColorAdapter(AppConstants.CAROUSEL_COLORS, AppConstants.CAROUSEL_HEX));
+
+        LinearSnapHelper snapHelper = new LinearSnapHelper();
+        snapHelper.attachToRecyclerView(carouselRv);
+
+        int initialPos = 0;
+        for (int i = 0; i < AppConstants.CAROUSEL_COLORS.length; i++) {
+            if (AppConstants.CAROUSEL_COLORS[i].equalsIgnoreCase(selectedColorTag)) {
+                initialPos = i;
+                break;
             }
         }
+
+        final int finalPos = initialPos;
+        carouselRv.post(() -> {
+            layoutManager.scrollToPositionWithOffset(finalPos, 0);
+            carouselRv.postDelayed(() -> {
+                View view = layoutManager.findViewByPosition(finalPos);
+                if (view != null) {
+                    int[] snapDistance = snapHelper.calculateDistanceToFinalSnap(layoutManager, view);
+                    if (snapDistance != null) carouselRv.smoothScrollBy(snapDistance[0], snapDistance[1]);
+                }
+            }, 100);
+        });
+
+        carouselRv.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                View centerView = snapHelper.findSnapView(layoutManager);
+                if (centerView != null) {
+                    int pos = recyclerView.getChildAdapterPosition(centerView);
+                    if (pos != RecyclerView.NO_POSITION) {
+                        selectedColorTag = AppConstants.CAROUSEL_COLORS[pos].toLowerCase();
+                    }
+                }
+            }
+        });
     }
 
     private void saveAndExit() {
-        // 1. Obtener idioma
         String selLang = codes[langSpinner.getSelectedItemPosition()];
-
-        // 2. Obtener Color
-        String selColor = "red";
-        int checkedId = colorGroup.getCheckedRadioButtonId();
-        View checked = findViewById(checkedId);
-        if (checked != null && checked.getTag() != null) {
-            selColor = checked.getTag().toString();
-        }
-
-        // 3. Guardar todo mediante el Helper
         prefHelper.setLanguage(selLang);
         prefHelper.setMusicVolume(musicSeekBar.getProgress());
         prefHelper.setEffectsVolume(effectsSeekBar.getProgress());
-        prefHelper.setCharacterColor(selColor);
+        prefHelper.setCharacterColor(selectedColorTag);
 
-        // 4. Aplicar cambios de sistema
-        LocaleUtils.applyAppLocale(this, selLang);
-        translationManager.setTargetFromAppLang(selLang);
-
-        // 5. Reiniciar App para aplicar cambios globales
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
     }
 
-    private void setupTranslationListener() {
-        translationManager.setListener(new TranslationManager.TranslationListener() {
-            @Override
-            public void onModelDownloaded(String lang) { Log.d("Settings", "Model: " + lang); }
+    private class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ViewHolder> {
+        private final String[] names;
+        private final int[] colors;
 
-            @Override
-            public void onTranslated(View v, String text) {}
+        ColorAdapter(String[] names, int[] colors) {
+            this.names = names;
+            this.colors = colors;
+        }
 
-            @Override
-            public void onFailure(@NonNull Exception e) { Log.e("Settings", e.getMessage()); }
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_carousel_player, parent, false);
+            return new ViewHolder(v);
+        }
 
-            @Override
-            public void onRestoredFromResources() {
-                runOnUiThread(() -> {
-                    labels = getResources().getStringArray(R.array.supported_lang_labels);
-                    adapter.clear();
-                    adapter.addAll(Arrays.asList(labels));
-                    adapter.notifyDataSetChanged();
-                });
-            }
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            holder.img.setColorFilter(colors[position], PorterDuff.Mode.MULTIPLY);
+            holder.itemView.setOnClickListener(v -> carouselRv.smoothScrollToPosition(position));
+        }
 
-            @Override
-            public void onNoTranslationNeeded() { onRestoredFromResources(); }
-        });
-    }
+        @Override public int getItemCount() { return names.length; }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        // Al entrar a cualquier pantalla de menú, suena música de menú
-        SoundManager.getInstance().playMenuMusic(this);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        translationManager.unbindActivity();
-        translationManager.setListener(null);
+        class ViewHolder extends RecyclerView.ViewHolder {
+            ImageView img;
+            ViewHolder(View v) { super(v); img = v.findViewById(R.id.img_player_preview); }
+        }
     }
 }
