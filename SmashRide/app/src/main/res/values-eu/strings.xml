@@ -19,6 +19,8 @@
     <string name="delete_all_data">DATU GUZTIAK EZABATU</string>
     <string name="save">Aldaketak Gorde</string>
     <string name="mode_selector_desc">Modu aukeratzailea</string>
+    <string name="loading_players">Jokalariak kargatzen...</string>
+    <string name="cancel_action">UTZI</string>
     <!-- Karruselaren Koloreak -->
     <string name="color_gold">URREZTATUA</string>
     <string name="color_orange">LARANJA</string>

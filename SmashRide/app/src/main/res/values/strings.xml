@@ -18,6 +18,8 @@
     <string name="delete_all_data">DELETE ALL DATA</string>
     <string name="save">Save Changes</string>
     <string name="mode_selector_desc">Mode selector</string>
+    <string name="loading_players">Loading Players...</string>
+    <string name="cancel_action">CANCEL</string>
     <!-- Colors for Carousel -->
     <string name="color_gold">GOLD</string>
     <string name="color_orange">ORANGE</string>

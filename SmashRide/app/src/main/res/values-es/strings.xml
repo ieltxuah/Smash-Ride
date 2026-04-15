@@ -19,6 +19,8 @@
     <string name="delete_all_data">BORRAR TODOS LOS DATOS</string>
     <string name="save">Guardar cambios</string>
     <string name="mode_selector_desc">Selector de modo</string>
+    <string name="loading_players">Cargando jugadores...</string>
+    <string name="cancel_action">CANCELAR</string>
     <!-- Colores para el Carrusel -->
     <string name="color_gold">DORADO</string>
     <string name="color_orange">NARANJA</string>

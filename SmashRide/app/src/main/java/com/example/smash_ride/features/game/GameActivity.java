@@ -1,17 +1,22 @@
 package com.example.smash_ride.features.game;
 
-import android.content.Intent;
-import android.os.Bundle;
+import android.content.Intent;import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.graphics.GifHardwareDecoder;
+import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.ranking.RankingActivity;
+import com.example.smash_ride.translation.LocaleUtils;
+import com.example.smash_ride.translation.TranslationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,9 +24,9 @@ import java.util.List;
 public class GameActivity extends AppCompatActivity implements GameOverListener {
 
     private GameView gameView;
-    private List<Player> players; // List to hold multiple players
-    private View loadingLayout; // Reference to the loading layout
-    private static final long LOADER_DELAY_MS = 20000; // 20 seconds
+    private List<Player> players;
+    private View loadingLayout;
+    private static final long LOADER_DELAY_MS = 20000; // 20 segundos
     private Handler handler;
     private float centerX;
     private float centerY;
@@ -30,72 +35,137 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     private boolean offlineMode = true;
     private boolean isGameRunning = false;
 
+    // --- NUEVAS VARIABLES PARA CANCELACIÓN ---
+    private Thread loadingThread;
+    private volatile boolean isCancelled = false;
+
+    // Traducción y Preferencias
+    private TranslationManager translationManager;
+    private String currentLang;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 1. GESTIÓN DE IDIOMA
+        PreferenceHelper prefHelper = new PreferenceHelper(this);
+        currentLang = prefHelper.getLanguage();
+        LocaleUtils.applyAppLocale(this, currentLang);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_game);
 
-        // Estado inicial del juego
-        isGameRunning = true;
+        // 2. CARGAR GIF DE FONDO POR HARDWARE
+        ImageView backgroundGif = findViewById(R.id.background_gif);
+        if (backgroundGif != null) {
+            GifHardwareDecoder.loadGif(this, backgroundGif, R.drawable.background_stars);
+        }
 
-        // CONFIGURACIÓN DEL BLOQUEO DEL BOTÓN ATRÁS
+        // 3. INICIALIZAR MANAGER DE TRADUCCIÓN
+        translationManager = TranslationManager.getInstance();
+        translationManager.bindActivity(this);
+
+        isGameRunning = true;
         setupBackPressBlocker();
 
         loadingLayout = findViewById(R.id.loading_layout);
         players = new ArrayList<>();
         handler = new Handler(Looper.getMainLooper());
 
+        // 4. BOTÓN CANCELAR (Actualizado con cancelación de hilo)
+        Button cancelBtn = findViewById(R.id.cancel_loading_button);
+        if (cancelBtn != null) {
+            cancelBtn.setOnClickListener(v -> {
+                isCancelled = true;
+                if (loadingThread != null && loadingThread.isAlive()) {
+                    loadingThread.interrupt(); // Detener el hilo inmediatamente
+                }
+                handler.removeCallbacksAndMessages(null); // Detener el finishLoading
+                finish();
+                overridePendingTransition(0, 0); // Evitar parpadeo blanco
+            });
+        }
+
+        // Obtener configuración del Intent
         String mode = getIntent().getStringExtra("GAME_MODE");
         if ("TIMER".equals(mode)) selectedMode = GameView.GameMode.TIMER;
         else selectedMode = GameView.GameMode.LIVES;
         offlineMode = getIntent().getBooleanExtra("OFFLINE", true);
 
+        // 5. INICIAR CARGA
         initializePlayers();
+
+        // 6. TRADUCIR UI DE CARGA
+        initTranslation();
+    }
+
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
+        }
     }
 
     private void setupBackPressBlocker() {
         OnBackPressedCallback callback = new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                // Si el juego está corriendo, ignoramos la acción
                 if (!isGameRunning) {
-                    // Si el juego terminó o está pausado, permitimos salir
-                    setEnabled(false); // Desactiva este callback
-                    getOnBackPressedDispatcher().onBackPressed(); // Ejecuta la acción normal
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
                 }
             }
         };
-
-        // Añadimos el callback al dispatcher de la actividad
         getOnBackPressedDispatcher().addCallback(this, callback);
     }
 
-
     private void initializePlayers() {
-        new Thread(() -> {
-            // Use display metrics as initial approximate center; final correct positions will be set by GameView.onSizeChanged
-            centerX = getResources().getDisplayMetrics().widthPixels / 2f;
-            centerY = getResources().getDisplayMetrics().heightPixels / 2f;
-            radius = Math.min(centerX, centerY) - 100;
+        isCancelled = false;
+        loadingThread = new Thread(() -> {
+            try {
+                centerX = getResources().getDisplayMetrics().widthPixels / 2f;
+                centerY = getResources().getDisplayMetrics().heightPixels / 2f;
+                radius = Math.min(centerX, centerY) - 100;
 
-            int[][] positions = {
-                    { (int) centerX, (int) (centerY - radius) }, // North
-                    { (int) centerX, (int) (centerY + radius) }, // South
-                    { (int) (centerX + radius), (int) centerY }, // East
-                    { (int) (centerX - radius), (int) centerY }  // West
-            };
+                int[][] positions = {
+                        { (int) centerX, (int) (centerY - radius) }, // North
+                        { (int) centerX, (int) (centerY + radius) }, // South
+                        { (int) (centerX + radius), (int) centerY }, // East
+                        { (int) (centerX - radius), (int) centerY }  // West
+                };
 
-            // Start players with speed 0 so they don't move until joystick input
-            for (int i = 0; i < 4; i++) {
-                players.add(new Player("Player " + (i + 1), positions[i][0], positions[i][1], false, 0));
+                for (int i = 0; i < 4; i++) {
+                    // Verificamos si se ha cancelado el proceso
+                    if (isCancelled || Thread.currentThread().isInterrupted()) return;
+
+                    players.add(new Player("Player " + (i + 1), positions[i][0], positions[i][1], false, 0));
+                }
+
+                // Si no se ha cancelado, programamos el inicio del juego
+                if (!isCancelled) {
+                    handler.postDelayed(this::finishLoading, LOADER_DELAY_MS);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            handler.postDelayed(this::finishLoading, LOADER_DELAY_MS);
-        }).start();
+        });
+        loadingThread.start();
     }
 
     private void finishLoading() {
+        if (isFinishing() || isCancelled) return;
+
+        // Ocultar UI de carga y fondos de estrellas
         loadingLayout.setVisibility(View.GONE);
+        View staticBg = findViewById(R.id.background_static);
+        View gifBg = findViewById(R.id.background_gif);
+        if (staticBg != null) staticBg.setVisibility(View.GONE);
+        if (gifBg != null) gifBg.setVisibility(View.GONE);
+
+        // Inicializar la vista de juego real
         gameView = new GameView(this, players);
         gameView.setGameOverListener(this);
         gameView.setGameMode(selectedMode);
@@ -135,14 +205,12 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
             i.putIntegerArrayListExtra("KILLS", kills);
             startActivity(i);
         }
-
         finish();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Reanudamos la música al volver
         SoundManager.getInstance().resumeMusic();
         if (gameView != null) {
             gameView.resume();
@@ -152,11 +220,10 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     @Override
     protected void onPause() {
         super.onPause();
-        // Pausamos la música de juego si la app se minimiza
         SoundManager.getInstance().pauseMusic();
         if (gameView != null) {
             gameView.pause();
-            if (players != null && players.size() > 0) {
+            if (players != null && !players.isEmpty()) {
                 Player p1 = players.get(0);
                 p1.destroy();
             }
@@ -167,7 +234,15 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Al cerrar el juego y volver al menú, restauramos la música de menú
-        SoundManager.getInstance().playMenuMusic(this);
+        isCancelled = true;
+        if (loadingThread != null && loadingThread.isAlive()) {
+            loadingThread.interrupt();
+        }
+        if (translationManager != null) {
+            translationManager.unbindActivity();
+        }
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
     }
 }
