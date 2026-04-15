@@ -18,16 +18,19 @@
         android:theme="@style/Theme.SmashRide"
         tools:ignore="LockedOrientationActivity">
         <activity
-            android:name=".RankingActivity"
+            android:name=".features.settings.SettingsActivity"
             android:exported="false" />
         <activity
-            android:name=".LoseActivity"
+            android:name=".features.ranking.RankingActivity"
             android:exported="false" />
         <activity
-            android:name=".WinActivity"
+            android:name=".features.game.LoseActivity"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".features.game.WinActivity"
+            android:exported="false" />
+        <activity
+            android:name=".features.main.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -35,7 +38,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".GameActivity" />
+        <activity android:name=".features.game.GameActivity" />
     </application>
 
 </manifest>

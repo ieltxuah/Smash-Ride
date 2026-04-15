@@ -3,6 +3,11 @@
     <style name="Base.Theme.SmashRide" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="fontFamily">@font/kirby_classic</item>
+        <item name="android:fontFamily">@font/kirby_classic</item>
+
+        <!-- Esto asegura que los botones también hereden la fuente -->
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
     </style>
 
     <style name="Theme.SmashRide" parent="Base.Theme.SmashRide" />

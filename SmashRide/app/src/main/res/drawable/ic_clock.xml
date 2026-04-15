@@ -4,22 +4,29 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Contorno circular -->
+
+    <!-- Círculo Principal: Un 10% más pequeño, desplazado a Y=13 (más abajo) -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.4"
+        android:pathData="M12,13m-5.2,0a5.2,5.2 0 1,1 10.4,0a5.2,5.2 0 1,1 -10.4,0"/>
+
+    <!-- Pulsador superior: Redondeado (estilo píldora) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10.5,6h3c0.5,0 1,0.5 1,1v0.5h-5V7c0,-0.5 0.5,-1 1,-1z"/>
+
+    <!-- Manecillas: Rectas, finas (1.2) y alineadas al nuevo centro -->
+    <path
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="1.2"
-        android:pathData="M12,3a9,9 0 1,0 0,18 9,9 0 0,0 0,-18z"/>
-    <!-- Botón superior -->
+        android:strokeLineCap="butt"
+        android:pathData="M12,13V10 M12,13l2.8,1.8"/>
+
+    <!-- Punto central: Muy pequeño y fino para no ensuciar las manecillas -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M10.5,1.5h3c0.28,0 0.5,0.22 0.5,0.5v0c0,0.28-0.22,0.5-0.5,0.5h-3c-0.28,0-0.5-0.22-0.5-0.5v0c0-0.28,0.22-0.5,0.5-0.5z"/>
-    <!-- Manecilla central (hora) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,8.2c-0.28,0-0.5,0.22-0.5,0.5v4.3l-2.1,1.25c-0.21,0.12-0.28,0.39-0.16,0.6l0.5,0.86c0.12,0.21,0.39,0.28,0.6,0.16L12.5,15c0.19-0.11,0.31-0.32,0.31-0.55V8.7c0-0.28-0.22-0.5-0.5-0.5z"/>
-    <!-- Punto central -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,11.5a0.6,0.6 0 1,0 0.001,0z"/>
+        android:pathData="M12,13m-0.6,0a0.6,0.6 0 1,1 1.2,0a0.6,0.6 0 1,1 -1.2,0"/>
+
 </vector>

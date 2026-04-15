@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Smash Ride</string>
+    <string name="menu_title">Jokoaren menua</string>
+    <string name="start_button">Partida hasi</string>
+    <string name="settings_button">Ezarpenak</string>
+    <string name="ranking_button">Sailkapena</string>
+    <string name="select_mode">Modua hautatu</string>
+    <string name="mode_lives">Bihotza (Bizitzak)</string>
+    <string name="mode_timer">Denbora (Denbora)</string>
+    <string name="settings_title_language">Hizkuntza</string>
+    <string name="settings_label_music">Istripu Musika</string>
+    <string name="settings_label_effects">Soinu Efektuak</string>
+    <string name="settings_title_color">Pertsonaia Kolorea</string>
+    <string name="status_connected">Egoera: Konektatuta</string>
+    <string name="status_disconnected">Egoera: Deskonektatuta</string>
+    <string name="login_action">SAIOA HASI</string>
+    <string name="logout_action">SAIOA ITXI</string>
+    <string name="delete_all_data">DATU GUZTIAK EZABATU</string>
+    <string name="save">Aldaketak Gorde</string>
+    <string name="mode_selector_desc">Modu aukeratzailea</string>
+    <!-- Karruselaren Koloreak -->
+    <string name="color_gold">URREZTATUA</string>
+    <string name="color_orange">LARANJA</string>
+    <string name="color_silver">ZILARRA</string>
+    <string name="color_red">GORRIA</string>
+    <string name="color_blue">URDINA</string>
+</resources>
