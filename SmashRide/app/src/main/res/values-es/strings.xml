@@ -12,6 +12,11 @@
     <string name="settings_label_music">Música de Fondo</string>
     <string name="settings_label_effects">Efectos de Sonido</string>
     <string name="settings_title_color">Color del Personaje</string>
+    <string name="status_connected">Estado: Conectado</string>
+    <string name="status_disconnected">Estado: Desconectado</string>
+    <string name="login_action">INICIAR SESIÓN</string>
+    <string name="logout_action">CERRAR SESIÓN</string>
+    <string name="delete_all_data">BORRAR TODOS LOS DATOS</string>
     <string name="save">Guardar cambios</string>
     <string name="mode_selector_desc">Selector de modo</string>
     <!-- Colores para el Carrusel -->

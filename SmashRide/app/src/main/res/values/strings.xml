@@ -11,6 +11,11 @@
     <string name="settings_label_music">Background Music</string>
     <string name="settings_label_effects">Sound Effects</string>
     <string name="settings_title_color">Character Color</string>
+    <string name="status_connected">Status: Connected</string>
+    <string name="status_disconnected">Status: Disconnected</string>
+    <string name="login_action">LOGIN</string>
+    <string name="logout_action">LOGOUT</string>
+    <string name="delete_all_data">DELETE ALL DATA</string>
     <string name="save">Save Changes</string>
     <string name="mode_selector_desc">Mode selector</string>
     <!-- Colors for Carousel -->

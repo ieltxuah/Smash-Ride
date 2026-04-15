@@ -12,6 +12,11 @@
     <string name="settings_label_music">Istripu Musika</string>
     <string name="settings_label_effects">Soinu Efektuak</string>
     <string name="settings_title_color">Pertsonaia Kolorea</string>
+    <string name="status_connected">Egoera: Konektatuta</string>
+    <string name="status_disconnected">Egoera: Deskonektatuta</string>
+    <string name="login_action">SAIOA HASI</string>
+    <string name="logout_action">SAIOA ITXI</string>
+    <string name="delete_all_data">DATU GUZTIAK EZABATU</string>
     <string name="save">Aldaketak Gorde</string>
     <string name="mode_selector_desc">Modu aukeratzailea</string>
     <!-- Karruselaren Koloreak -->

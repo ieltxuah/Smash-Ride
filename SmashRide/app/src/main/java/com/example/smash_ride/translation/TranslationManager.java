@@ -157,4 +157,12 @@ public class TranslationManager {
             }
         }
     }
+
+    // Añade esto al final de TranslationManager.java
+    public void unregisterView(View view) {
+        if (view != null) {
+            registeredViews.remove(view);
+            originalEnglishById.remove(view.getId());
+        }
+    }
 }

@@ -7,7 +7,8 @@
         <item name="android:fontFamily">@font/kirby_classic</item>
 
         <!-- Esto asegura que los botones también hereden la fuente -->
-        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>    </style>
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+    </style>
 
     <style name="Theme.SmashRide" parent="Base.Theme.SmashRide" />
 </resources>
