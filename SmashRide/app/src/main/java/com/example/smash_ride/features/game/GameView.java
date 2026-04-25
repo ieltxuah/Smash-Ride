@@ -14,6 +14,8 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.constants.AppConstants;
+import com.example.smash_ride.data.local.PreferenceHelper;
 
 import java.util.List;
 
@@ -57,9 +59,11 @@ public class GameView extends SurfaceView implements Runnable {
     private long lastVibrationTimeMs = 0;
     private static final long VIBRATION_THROTTLE_MS = 200;
 
-    public GameView(Context context, List<Player> players) {
+    public GameView(Context context, List<Player> players, int color) {
         super(context);
         this.players = players;
+        this.joystick = new Joystick();
+        joystick.setThemeColor(color);
         initialize();
     }
 
@@ -68,8 +72,6 @@ public class GameView extends SurfaceView implements Runnable {
         paint = new Paint();
         paint.setColor(Color.GRAY);
         isPlaying = false;
-
-        joystick = new Joystick();
 
         centerX = getWidth() / 2f;
         centerY = getHeight() / 2f;

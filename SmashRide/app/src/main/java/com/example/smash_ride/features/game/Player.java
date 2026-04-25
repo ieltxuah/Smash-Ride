@@ -1,10 +1,20 @@
 package com.example.smash_ride.features.game;
 
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 
+import com.example.smash_ride.R;
+import com.example.smash_ride.core.graphics.SpriteColorizer;
+
 public class Player {
+    // Variable para el sprite coloreado
+    private Bitmap playerBitmap;
+    private Bitmap borderBitmap;
+
     public String name;
     private float xPos;
     private float yPos;
@@ -12,23 +22,25 @@ public class Player {
     private final float initialY;
     private float speed;
     private float angle;
-    private float collisionAngle; // dirección de colisión
-    private boolean isColliding; // estado de colisión (también usado para bloquear input/movimiento)
+    private final float initialAngle;
+    private float collisionAngle;
+    private boolean isColliding;
     private final Paint paint;
 
-    private final float initialSpeed; // velocidad inicial
+    private final float initialSpeed;
 
     // Estado de juego
     private int lives = 6;
     private int kills = 0;
-    private boolean destroyed = false; // fuera del juego
+    private boolean destroyed = false;
 
-    public Player(String name, float x, float y, boolean someFlag, int speed) {
-        this.name = name;
+    public Player(String name, float x, float y, float initialAngle, int speed) {        this.name = name;
         this.xPos = x;
         this.yPos = y;
         this.initialX = x;
         this.initialY = y;
+        this.initialAngle = initialAngle; // Guardamos el ángulo inicial
+        this.angle = initialAngle;        // Aplicamos el ángulo actual
         this.speed = speed;
         this.initialSpeed = speed;
         this.paint = new Paint();
@@ -36,26 +48,90 @@ public class Player {
         this.isColliding = false;
     }
 
-    // helper to draw extra UI (lives)
+    /**
+     * Configura el aspecto visual del jugador.
+     * Escala los bitmaps para que coincidan con el radio de colisión (25).
+     */
+    public void setAppearance(Context context, int themeColor) {
+        // El círculo de fallback ahora también tendrá el color correcto
+        this.paint.setColor(themeColor);
+
+        try {
+            Bitmap rawBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.player_star);
+            if (rawBitmap != null) {
+                // 1. Crear el Sprite Coloreado
+                Bitmap tinted = SpriteColorizer.colorizeBitmap(rawBitmap, themeColor);
+                // Escalar a 120x120
+                this.playerBitmap = Bitmap.createScaledBitmap(tinted, 120, 120, true);
+
+                // 2. Crear el Borde/Silueta Negra
+                Bitmap blackSilhouette = SpriteColorizer.colorizeBitmap(rawBitmap, Color.BLACK);
+                // Escalar un poco más grande (130x130) para que sobresalga como borde
+                this.borderBitmap = Bitmap.createScaledBitmap(blackSilhouette, 150, 150, true);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void draw(Canvas canvas) {
+        if (destroyed) return;
+
+        if (playerBitmap != null) {
+            // 1. Guardar el estado actual del canvas
+            canvas.save();
+
+            // 2. Mover el "punto de dibujo" al centro del jugador
+            canvas.translate(xPos, yPos);
+
+            // 3. Rotar el canvas según el ángulo del jugador
+            canvas.rotate(angle+40);
+
+            // 4. Dibujar el borde (centrado en el nuevo origen 0,0)
+            canvas.drawBitmap(borderBitmap,
+                    - (borderBitmap.getWidth() / 2f),
+                    - (borderBitmap.getHeight() / 2f),
+                    null);
+
+            // 5. Dibujar el sprite coloreado encima
+            canvas.drawBitmap(playerBitmap,
+                    - (playerBitmap.getWidth() / 2f),
+                    - (playerBitmap.getHeight() / 2f),
+                    null);
+
+            // 6. Restaurar el canvas a su posición original para no afectar a otros elementos
+            canvas.restore();
+        } else {
+            // Mantenemos el círculo original como "fallback" con el color de la estrella
+            canvas.drawCircle(xPos, yPos, 25, paint);
+
+            // Dibujar un borde negro al círculo de fallback por consistencia
+            Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(3f);
+            strokePaint.setColor(Color.BLACK);
+            canvas.drawCircle(xPos, yPos, 25, strokePaint);        }
+    }
+
+    // Mantenemos este método para compatibilidad con UI extra si se usa
     public void drawWithStatus(Canvas canvas) {
         if (destroyed) return;
-        canvas.drawCircle(xPos, yPos, 25, paint);
+        draw(canvas); // Dibuja el sprite
         Paint text = new Paint();
-        text.setColor(Color.BLACK);
-        text.setTextSize(20f);
-        canvas.drawText(String.valueOf(lives), xPos - 6, yPos + 6, text);
+        text.setColor(Color.WHITE); // Cambiado a blanco para que se vea sobre fondo oscuro
+        text.setTextSize(25f);
+        text.setFakeBoldText(true);
+        canvas.drawText(String.valueOf(lives), xPos - 10, yPos - 35, text);
     }
 
     public void update() {
-        if (destroyed) return; // jugador eliminado no se actualiza
+        if (destroyed) return;
         if (!isColliding) {
             xPos += Math.cos(Math.toRadians(angle)) * speed;
             yPos += Math.sin(Math.toRadians(angle)) * speed;
         } else {
-            // retroceso basado en collisionAngle (usado temporalmente)
             xPos += Math.cos(Math.toRadians(collisionAngle)) * speed;
             yPos += Math.sin(Math.toRadians(collisionAngle)) * speed;
-            // no reiniciamos isColliding aquí automáticamente: controlarlo desde quien provoca la colisión
         }
     }
 
@@ -89,21 +165,7 @@ public class Player {
         this.yPos = y;
     }
 
-    public void draw(Canvas canvas) {
-        if (destroyed) return; // no dibujar si eliminado
-        canvas.drawCircle(xPos, yPos, 25, paint);
-
-//        // Cómo usarlo (ejemplo en Activity o donde cargues sprites):
-//        Bitmap original = BitmapFactory.decodeResource(getResources(), R.drawable.star_sprite);
-//
-//        // Ejemplos de hues: rojo ~0, verde ~120, azul ~240
-//        Bitmap rojo   = SpriteColorizer.recolorByHue(original, 0f, Color.rgb(96,24,0), 20f);
-//        Bitmap verde  = SpriteColorizer.recolorByHue(original, 120f, Color.rgb(96,24,0), 20f);
-//        Bitmap azul   = SpriteColorizer.recolorByHue(original, 240f, Color.rgb(96,24,0), 20f);
-    }
-
     public void resetPosition() {
-        // Si el jugador está destruido, lo sacamos del área visible para evitar colisiones visuales
         if (destroyed) {
             this.xPos = -1000f;
             this.yPos = -1000f;
@@ -113,8 +175,8 @@ public class Player {
         }
         this.xPos = initialX;
         this.yPos = initialY;
+        this.angle = initialAngle;
         setColliding(false);
-        // opcional: restaurar velocidad base al resetear (no al morir)
         this.speed = initialSpeed;
     }
 
@@ -137,7 +199,7 @@ public class Player {
             return;
         }
         this.isColliding = colliding;
-        if (colliding) this.speed = 0f; // bloquear movimiento inmediato cuando colisiona
+        if (colliding) this.speed = 0f;
     }
 
     public boolean isColliding() {
@@ -145,7 +207,6 @@ public class Player {
     }
 
     public void disableJoystick() {
-        // marcar como colisionado / sin control
         isColliding = true;
         speed = 0f;
     }
@@ -153,10 +214,8 @@ public class Player {
     public void enableJoystick() {
         if (destroyed) return;
         isColliding = false;
-        // no restauramos speed aquí; quien habilite el movimiento puede setSpeed según joystick
     }
 
-    // Lives / kills API
     public int getLives() { return lives; }
     public void setLives(int l) {
         lives = l;
@@ -173,10 +232,8 @@ public class Player {
 
     private void markDestroyed() {
         destroyed = true;
-        // asegurar que no pueda moverse ni colisionar con lógica del juego
         isColliding = true;
         speed = 0f;
-        // quitar del área visible
         this.xPos = -1000f;
         this.yPos = -1000f;
     }

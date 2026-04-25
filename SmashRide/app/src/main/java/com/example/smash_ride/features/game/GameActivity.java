@@ -1,5 +1,7 @@
 package com.example.smash_ride.features.game;
 
+import static java.util.Collections.shuffle;
+
 import android.content.Intent;import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.ranking.RankingActivity;
@@ -25,6 +28,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
 
     private GameView gameView;
     private List<Player> players;
+    int color = AppConstants.CAROUSEL_HEX[3];
     private View loadingLayout;
     private static final long LOADER_DELAY_MS = 20000; // 20 segundos
     private Handler handler;
@@ -126,25 +130,60 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         isCancelled = false;
         loadingThread = new Thread(() -> {
             try {
+                // 1. Obtener mi color de ajustes
+                PreferenceHelper prefHelper = new PreferenceHelper(this);
+                String myColorTag = prefHelper.getCharacterColor();
+
+                // Lista de colores disponibles para bots (basada en AppConstants)
+                List<Integer> availableColors = new ArrayList<>();
+                for (int hex : AppConstants.CAROUSEL_HEX) {
+                    availableColors.add(hex);
+                }
+
+                // Identificar mi color y quitarlo de la lista de bots
+                for (int i = 0; i < AppConstants.CAROUSEL_COLORS.length; i++) {
+                    if (AppConstants.CAROUSEL_COLORS[i].equalsIgnoreCase(myColorTag)) {
+                        color = AppConstants.CAROUSEL_HEX[i];
+                        availableColors.remove((Integer) color); // Eliminar de bots
+                        break;
+                    }
+                }
+
+                // Mezclar colores restantes para los bots
+                shuffle(availableColors);
+
                 centerX = getResources().getDisplayMetrics().widthPixels / 2f;
                 centerY = getResources().getDisplayMetrics().heightPixels / 2f;
                 radius = Math.min(centerX, centerY) - 100;
 
-                int[][] positions = {
-                        { (int) centerX, (int) (centerY - radius) }, // North
-                        { (int) centerX, (int) (centerY + radius) }, // South
-                        { (int) (centerX + radius), (int) centerY }, // East
-                        { (int) (centerX - radius), (int) centerY }  // West
+                // Definimos {X, Y, ÁnguloInicial}
+                // Los ángulos están calculados para que miren hacia el centro del área
+                int[][] initialStates = {
+                        { (int) centerX, (int) (centerY - radius), 90  }, // P1: Arriba mirando abajo
+                        { (int) centerX, (int) (centerY + radius), 270 }, // P2: Abajo mirando arriba
+                        { (int) (centerX + radius), (int) centerY, 180 }, // P3: Derecha mirando izquierda
+                        { (int) (centerX - radius), (int) centerY, 0   }  // P4: Izquierda mirando derecha
                 };
 
                 for (int i = 0; i < 4; i++) {
-                    // Verificamos si se ha cancelado el proceso
                     if (isCancelled || Thread.currentThread().isInterrupted()) return;
 
-                    players.add(new Player("Player " + (i + 1), positions[i][0], positions[i][1], false, 0));
+                    // Actualizamos el constructor: pasamos initialStates[i][2] como ángulo
+                    Player p = new Player("Player " + (i + 1),
+                            initialStates[i][0],
+                            initialStates[i][1],
+                            initialStates[i][2], // Nuevo parámetro de ángulo
+                            0); // Velocidad inicial
+
+                    // ASIGNACIÓN DE COLOR
+                    if (i == 0) {
+                        p.setAppearance(this, color);
+                    } else {
+                        p.setAppearance(this, availableColors.get(i - 1));
+                    }
+                    players.add(p);
                 }
 
-                // Si no se ha cancelado, programamos el inicio del juego
                 if (!isCancelled) {
                     handler.postDelayed(this::finishLoading, LOADER_DELAY_MS);
                 }
@@ -166,7 +205,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         if (gifBg != null) gifBg.setVisibility(View.GONE);
 
         // Inicializar la vista de juego real
-        gameView = new GameView(this, players);
+        gameView = new GameView(this, players, color);
         gameView.setGameOverListener(this);
         gameView.setGameMode(selectedMode);
         gameView.setOffline(offlineMode);
