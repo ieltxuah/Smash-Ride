@@ -76,7 +76,7 @@ public class GameView extends SurfaceView implements Runnable {
         centerX = getWidth() / 2f;
         centerY = getHeight() / 2f;
         radius = 500f;
-        gameArea = new GameArea(centerX, centerY, radius);
+        gameArea = new GameArea(getContext(), centerX, centerY, radius);
 
         chargeAvailableMs = FULL_CHARGE_MS;
         boostStoredMs = 0;
@@ -90,7 +90,7 @@ public class GameView extends SurfaceView implements Runnable {
         super.onSizeChanged(w, h, oldw, oldh);
         centerX = w / 2f;
         centerY = h / 2f;
-        gameArea = new GameArea(centerX, centerY, radius);
+        gameArea = new GameArea(getContext(), centerX, centerY, radius);
     }
 
     public void setGameMode(GameMode mode) {
