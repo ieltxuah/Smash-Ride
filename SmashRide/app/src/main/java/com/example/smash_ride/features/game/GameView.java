@@ -1,10 +1,17 @@
 package com.example.smash_ride.features.game;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Movie;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -13,7 +20,13 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import androidx.core.content.res.ResourcesCompat;
+
+import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.constants.AppConstants;
+import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.translation.TranslationManager;
 
 import java.util.List;
 
@@ -22,7 +35,7 @@ public class GameView extends SurfaceView implements Runnable {
     public enum GameMode { LIVES, TIMER }
     private GameMode gameMode = GameMode.LIVES;
     private long timerMs = 0L;
-    private static final long TIMER_TOTAL_MS = 2 * 60 * 1000L;
+    private static final long TIMER_TOTAL_MS = 3 * 60 * 1000L;
     private boolean offline = true;
 
     private Thread gameThread;
@@ -32,6 +45,14 @@ public class GameView extends SurfaceView implements Runnable {
     private List<Player> players;
     private Joystick joystick;
     private GameArea gameArea;
+    private Movie backgroundGif;
+    private long gifStartTime;
+    private Bitmap backgroundStatic;
+    private Rect screenRect;
+    private Typeface hudTypeface;
+    private String labelKills = "Kills: ";
+    private String labelLives = "Lives: ";
+    private String labelTime = "Time: ";
 
     private float centerX;
     private float centerY;
@@ -57,10 +78,40 @@ public class GameView extends SurfaceView implements Runnable {
     private long lastVibrationTimeMs = 0;
     private static final long VIBRATION_THROTTLE_MS = 200;
 
-    public GameView(Context context, List<Player> players) {
+    public GameView(Context context, List<Player> players, int color) {
         super(context);
         this.players = players;
+        this.joystick = new Joystick();
+        joystick.setThemeColor(color);
+        try {
+            hudTypeface = ResourcesCompat.getFont(context, R.font.kirby_classic);
+        } catch (Exception e) {
+            hudTypeface = Typeface.DEFAULT_BOLD;
+        }
+        loadBackgrounds(context); // Cargar recursos de fondo
+        initHudTranslations();
         initialize();
+    }
+
+    private void loadBackgrounds(Context context) {
+        // 1. Intentar cargar GIF
+        try {
+            // Reemplaza 'background_stars' con el nombre real de tu recurso GIF
+            backgroundGif = Movie.decodeStream(context.getResources().openRawResource(R.raw.background_game));
+            gifStartTime = 0;
+        } catch (Exception e) {
+            Log.e("GameView", "No se pudo cargar el GIF de fondo");
+            backgroundGif = null;
+        }
+
+        // 2. Intentar cargar Imagen Estática (Respaldo 1)
+        try {
+            // Reemplaza 'background_stars_static' con tu imagen PNG/JPG
+            backgroundStatic = BitmapFactory.decodeResource(context.getResources(), R.drawable.background_game_static);
+        } catch (Exception e) {
+            Log.e("GameView", "No se pudo cargar la imagen estática de fondo");
+            backgroundStatic = null;
+        }
     }
 
     private void initialize() {
@@ -69,16 +120,15 @@ public class GameView extends SurfaceView implements Runnable {
         paint.setColor(Color.GRAY);
         isPlaying = false;
 
-        joystick = new Joystick();
-
-        centerX = getWidth() / 2f;
-        centerY = getHeight() / 2f;
-        radius = 500f;
-        gameArea = new GameArea(centerX, centerY, radius);
-
         chargeAvailableMs = FULL_CHARGE_MS;
         boostStoredMs = 0;
         boostActive = false;
+
+        if (players != null) {
+            for (Player p : players) {
+                p.setInvincible(2000);
+            }
+        }
         lastUpdateTimeMs = System.currentTimeMillis();
         ended = false;
     }
@@ -86,9 +136,26 @@ public class GameView extends SurfaceView implements Runnable {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        // AQUÍ es donde el tamaño es real
         centerX = w / 2f;
         centerY = h / 2f;
-        gameArea = new GameArea(centerX, centerY, radius);
+
+        // Definimos el radio de la luna (puedes ajustarlo según el diseño)
+        radius = 500f;
+
+        // Rectángulo que ocupa toda la pantalla para estirar el fondo
+        screenRect = new Rect(0, 0, w, h);
+
+        // Creamos el área de juego aquí con el tamaño correcto
+        gameArea = new GameArea(getContext(), centerX, centerY, radius);
+
+        // Reposicionamos a los jugadores para que no se queden en 0,0 al iniciar
+        // Solo si es la primera vez que se dimensiona
+        if (oldw == 0 && oldh == 0) {
+            for (Player p : players) {
+                p.resetPosition();
+            }
+        }
     }
 
     public void setGameMode(GameMode mode) {
@@ -152,6 +219,7 @@ public class GameView extends SurfaceView implements Runnable {
             }
             player1.setSpeed(0f);
         } else {
+            // Gestión de carga de boost
             if (boostPointerId != -1) {
                 if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
                     long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
@@ -196,10 +264,14 @@ public class GameView extends SurfaceView implements Runnable {
         if (offline) {
             for (int i = 0; i < players.size(); i++) {
                 Player a = players.get(i);
-                if (a.isDestroyed()) continue;
+                // Si el jugador 'a' está destruido o es invencible, no puede chocar ni ser chocado
+                if (a.isDestroyed() || a.isInvincible()) continue;
+
                 for (int j = i + 1; j < players.size(); j++) {
                     Player b = players.get(j);
-                    if (b.isDestroyed()) continue;
+                    // Si el jugador 'b' es invencible o está destruido, ignoramos
+                    if (b.isDestroyed() || b.isInvincible()) continue;
+
                     float dx = a.getXPos() - b.getXPos();
                     float dy = a.getYPos() - b.getYPos();
                     float dist = (float) Math.hypot(dx, dy);
@@ -207,7 +279,9 @@ public class GameView extends SurfaceView implements Runnable {
                 }
             }
         } else {
-            checkPlayerCollisions(player1);
+            if (player1 != null && !player1.isInvincible()) {
+                checkPlayerCollisions(player1);
+            }
         }
 
         for (Player p : players) {
@@ -231,7 +305,10 @@ public class GameView extends SurfaceView implements Runnable {
             }
         } else if (gameMode == GameMode.TIMER) {
             // in TIMER mode we only end when timer runs out OR if <=1 alive we go to ranking
-            if (aliveCount <= 1) {
+            timerMs -= delta;
+            if (timerMs <= 0) {
+                timerMs = 0;
+                // Aquí puedes llamar a tu lógica de fin de partida por tiempo
                 endMatchAndShowRanking();
             }
         }
@@ -242,7 +319,40 @@ public class GameView extends SurfaceView implements Runnable {
         try {
             if (surfaceHolder.getSurface().isValid()) {
                 canvas = surfaceHolder.lockCanvas();
-                canvas.drawColor(Color.WHITE);
+
+                // Nivel 3: Color Negro (Base siempre presente)
+                canvas.drawColor(Color.BLACK);
+
+                if (backgroundGif != null) {
+                    // Nivel 1: Dibujar GIF
+                    long now = System.currentTimeMillis();
+                    if (gifStartTime == 0) gifStartTime = now;
+
+                    int relTime = (int) ((now - gifStartTime) % backgroundGif.duration());
+                    backgroundGif.setTime(relTime);
+
+                    // Calcular escala para cubrir pantalla (Center Crop)
+                    float scale = Math.max((float) getWidth() / backgroundGif.width(),
+                            (float) getHeight() / backgroundGif.height());
+
+                    canvas.save();
+                    // Centrar y escalar
+                    canvas.translate((getWidth() - backgroundGif.width() * scale) / 2f,
+                            (getHeight() - backgroundGif.height() * scale) / 2f);
+                    canvas.scale(scale, scale);
+                    backgroundGif.draw(canvas, 0, 0);
+                    canvas.restore();
+
+                } else if (backgroundStatic != null) {
+                    // Nivel 2: Imagen estática con Center Crop
+                    float scale = Math.max((float) getWidth() / backgroundStatic.getWidth(),
+                            (float) getHeight() / backgroundStatic.getHeight());
+                    float w = backgroundStatic.getWidth() * scale;
+                    float h = backgroundStatic.getHeight() * scale;
+                    Rect dest = new Rect((int)((getWidth()-w)/2), (int)((getHeight()-h)/2),
+                            (int)((getWidth()+w)/2), (int)((getHeight()+h)/2));
+                    canvas.drawBitmap(backgroundStatic, null, dest, null);
+                }
 
                 if (gameArea != null) gameArea.draw(canvas);
                 else Log.e("GameView", "GameArea is null, cannot draw");
@@ -252,53 +362,130 @@ public class GameView extends SurfaceView implements Runnable {
                 }
                 joystick.draw(canvas);
 
-                drawBoostUI(canvas);
+                drawHUD(canvas);
             }
         } finally {
             if (canvas != null) surfaceHolder.unlockCanvasAndPost(canvas);
         }
     }
 
-    private void drawBoostUI(Canvas canvas) {
-        float left = 20f, top = 20f, width = 200f, height = 20f;
-        Paint bg = new Paint();
-        bg.setColor(Color.LTGRAY);
-        canvas.drawRect(left, top, left + width, top + height, bg);
+    private void initHudTranslations() {
+        Context ctx = getContext();
+        // 1. Cargar base desde strings.xml (Nativo: ES, EU, EN)
+        labelKills = ctx.getString(R.string.hud_kills).replace(": %d", ": ");
+        labelLives = ctx.getString(R.string.hud_lives).replace(": %d", ": ");
+        labelTime = ctx.getString(R.string.hud_time).replace(": %s", ": ");
 
+        // 2. Si el idioma no es nativo, pedir traducción a ML Kit
+        PreferenceHelper pf = new PreferenceHelper(ctx);
+        String lang = pf.getLanguage();
+        if (!lang.equals("es") && !lang.equals("eu") && !lang.equals("en")) {
+            TranslationManager tm = TranslationManager.getInstance();
+            tm.translateRaw(labelKills, translated -> labelKills = translated);
+            tm.translateRaw(labelLives, translated -> labelLives = translated);
+            tm.translateRaw(labelTime, translated -> labelTime = translated);
+        }
+    }
+
+    // 1. Asegúrate de que las variables de HUD y Paint estén bien definidas
+    private void drawHUD(Canvas canvas) {
+        if (players == null || players.isEmpty()) return;
+        Player p1 = players.get(0);
+
+        // Margenes de seguridad para evitar bordes y notches
+        float marginX = 80f;
+        float marginTop = 120f;
+
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextSize(50f);
+        textPaint.setFakeBoldText(true);
+        textPaint.setTypeface(hudTypeface);
+        textPaint.setShadowLayer(8f, 3f, 3f, Color.BLACK);
+
+        // --- PARTE IZQUIERDA: VIDAS O TIEMPO ---
+        String leftText;
+        if (gameMode == GameMode.LIVES) {
+            leftText = labelLives + p1.getLives();
+        } else {
+            // Formateo de tiempo mm:ss
+            long timeToDisplay = Math.max(0, timerMs);
+            int seconds = (int) (timeToDisplay / 1000) % 60;
+            int minutes = (int) (timeToDisplay / (1000 * 60)) % 60;
+            String timeFormatted = String.format("%02d:%02d", minutes, seconds);
+            leftText = labelTime + String.format("%02d:%02d", minutes, seconds);
+        }
+        canvas.drawText(leftText, marginX, marginTop, textPaint);
+
+        // --- PARTE DERECHA: KILLS ---
+        String killsText = labelKills + p1.getKills();
+        float killsWidth = textPaint.measureText(killsText);
+        canvas.drawText(killsText, getWidth() - marginX - killsWidth, marginTop, textPaint);
+
+        // --- BARRA DE BOOST (Debajo del texto de la izquierda) ---
+        float barWidth = 350f;
+        float barHeight = 30f;
+        float barTop = marginTop + 50f;
+
+        // Fondo de la barra (Gris oscuro translúcido)
+        Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        barPaint.setColor(Color.DKGRAY);
+        barPaint.setAlpha(180);
+        canvas.drawRect(marginX, barTop, marginX + barWidth, barTop + barHeight, barPaint);
+
+        // Progreso
         float fraction;
-        if (boostPointerId != -1 && boostStoredMs > 0) {
+        if (boostActive && boostStoredMs > 0) {
             fraction = (float) boostStoredMs / (float) MAX_BOOST_MS;
-            Paint fg = new Paint();
-            fg.setColor(Color.YELLOW);
-            canvas.drawRect(left, top, left + width * fraction, top + height, fg);
+            barPaint.setColor(Color.YELLOW); // Color Boost activo
         } else {
             fraction = (float) chargeAvailableMs / (float) FULL_CHARGE_MS;
-            Paint fg = new Paint();
-            fg.setColor(Color.GREEN);
-            canvas.drawRect(left, top, left + width * fraction, top + height, fg);
+            barPaint.setColor(Color.parseColor("#4CAF50")); // Verde carga
         }
+        barPaint.setAlpha(255);
+        canvas.drawRect(marginX, barTop, marginX + (barWidth * fraction), barTop + barHeight, barPaint);
 
-        Paint border = new Paint();
-        border.setStyle(Paint.Style.STROKE);
-        border.setColor(Color.BLACK);
-        canvas.drawRect(left, top, left + width, top + height, border);
+        // Borde negro fino para la barra
+        barPaint.setStyle(Paint.Style.STROKE);
+        barPaint.setColor(Color.BLACK);
+        barPaint.setStrokeWidth(4f);
+        canvas.drawRect(marginX, barTop, marginX + barWidth, barTop + barHeight, barPaint);
     }
 
     private void checkCollision(Player player) {
         if (player == null || player.isDestroyed()) return;
-        float carCenterX = player.getXPos() + 25;
-        float carCenterY = player.getYPos() + 25;
-        float distanceFromCenter = (float) Math.hypot(carCenterX - centerX, carCenterY - centerY);
+
+        float dx = player.getXPos() - centerX;
+        float dy = player.getYPos() - centerY;
+        float distanceFromCenter = (float) Math.hypot(dx, dy);
+
         if (distanceFromCenter >= radius) {
-            if (gameMode == GameMode.LIVES) {
-                if (!player.isDestroyed()) {
+            if (player.isInvincible()) {
+                // ... lógica de pared para invencibles (mantenla igual) ...
+                double angle = Math.atan2(dy, dx);
+                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 1)));
+                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 1)));
+                player.setSpeed(0);
+            } else {
+                // --- CORRECCIÓN AQUÍ ---
+                // 1. Identificar si hay un asesino ANTES de resetear o perder vida
+                Player killer = player.getLastHitter();
+
+                // 2. Si alguien lo empujó, le damos la Kill CADA VEZ que pierda una vida
+                if (killer != null && killer != player) {
+                    killer.addKill();
+                    Log.d("GameLogic", killer.name + " le quitó una vida a " + player.name);
+                }
+
+                // 3. Procesar la pérdida de vida
+                if (gameMode == GameMode.LIVES) {
                     player.loseLife();
                     if (players.indexOf(player) == 0) vibratePhoneThrottled();
                 }
-            } else {
-                // TIMER mode: do not reduce lives or mark destroyed; just reset position
+
+                // 4. Reposicionar (esto limpia el lastHitter automáticamente en Player.java)
+                player.resetPosition();
             }
-            player.resetPosition();
         }
     }
 
@@ -324,54 +511,71 @@ public class GameView extends SurfaceView implements Runnable {
         float distance = (float) Math.hypot(dx, dy);
         if (distance == 0f) distance = 0.001f;
 
+        // Vibrar si el jugador local está involucrado
         int idxA = players.indexOf(playerA);
         int idxB = players.indexOf(playerB);
         if (idxA == 0 || idxB == 0) vibratePhoneThrottled();
 
         float pushX = dx / distance;
         float pushY = dy / distance;
-        float speedA = playerA.getSpeed();
-        float speedB = playerB.getSpeed();
 
-        if (speedA == speedB) {
-            applyRetroceForBoth(playerA, playerB, pushX, pushY, Math.max(speedA, speedB));
+        // Determinar quién es el agresor (más rápido) y quién el afectado (más lento)
+        Player affected;
+        Player faster;
+
+        if (playerA.getSpeed() > playerB.getSpeed()) {
+            playerB.setLastHitter(playerA);
+            affected = playerB;
+            faster = playerA;
+        } else if (playerB.getSpeed() > playerA.getSpeed()) {
+            playerA.setLastHitter(playerB);
+            affected = playerA;
+            faster = playerB;
         } else {
-            Player affected = playerA.getSpeed() < playerB.getSpeed() ? playerA : playerB;
-            Player faster = playerA.getSpeed() >= playerB.getSpeed() ? playerA : playerB;
-            float retreatSpeed = faster.getSpeed();
-            affected.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
-            affected.disableJoystick();
-            for (int i = 0; i <= 10; i++) {
-                final int step = i;
-                final long delay = step * 10L;
-                final float dxPush = pushX;
-                final float dyPush = pushY;
-                final float rSpeed = retreatSpeed;
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                    if (affected.isDestroyed()) return;
-                    affected.setXPos(affected.getXPos() - dxPush * rSpeed);
-                    affected.setYPos(affected.getYPos() - dyPush * rSpeed);
-                    float cx = affected.getXPos() + 25;
-                    float cy = affected.getYPos() + 25;
-                    float dist = (float) Math.hypot(cx - centerX, cy - centerY);
-                    if (dist >= radius) {
-                        if (!affected.isDestroyed()) {
-                            if (gameMode == GameMode.LIVES) {
-                                affected.loseLife();
-                                if (affected.isDestroyed() && !faster.isDestroyed() && faster != affected) {
-                                    faster.addKill();
-                                }
-                            } else {
-                                // TIMER: do not destroy, just addkill
-                                if (!faster.isDestroyed() && faster != affected)
-                                    faster.addKill();
-                            }
-                        }
-                        affected.resetPosition();
+            // Empate de velocidad: ambos retroceden, no hay "killer" claro
+            applyRetroceForBoth(playerA, playerB, pushX, pushY, playerA.getSpeed());
+            return;
+        }
+
+        // Aplicar retroceso físico al jugador afectado
+        float retreatSpeed = faster.getSpeed();
+        // Invertimos el ángulo del afectado para que salga despedido en dirección opuesta al choque
+        float angleToPush = (affected == playerA) ? (float) Math.atan2(dy, dx) : (float) Math.atan2(-dy, -dx);
+
+        affected.disableJoystick();
+
+        for (int i = 0; i <= 10; i++) {
+            final int step = i;
+            final long delay = step * 10L;
+            final float moveX = (float) Math.cos(angleToPush) * retreatSpeed;
+            final float moveY = (float) Math.sin(angleToPush) * retreatSpeed;
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (affected.isDestroyed()) return;
+
+                // Mover por impacto
+                affected.setXPos(affected.getXPos() + moveX);
+                affected.setYPos(affected.getYPos() + moveY);
+
+                // Comprobar si se sale de la luna DURANTE el retroceso
+                float dist = (float) Math.hypot(affected.getXPos() - centerX, affected.getYPos() - centerY);
+                if (dist >= radius) {
+                    // --- CAMBIO CLAVE AQUÍ ---
+                    // Si hay un agresor, le damos la Kill CADA VEZ que el otro pierda una vida
+                    if (!faster.isDestroyed()) {
+                        faster.addKill();
                     }
-                    if (step == 10) affected.enableJoystick();
-                }, delay);
-            }
+
+                    if (gameMode == GameMode.LIVES) {
+                        affected.loseLife();
+                    }
+
+                    // Reposicionar al jugador (esto limpia el lastHitter internamente)
+                    affected.resetPosition();
+                }
+
+                if (step == 10) affected.enableJoystick();
+            }, delay);
         }
     }
 
@@ -408,7 +612,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }
@@ -420,7 +624,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }
@@ -432,7 +636,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }

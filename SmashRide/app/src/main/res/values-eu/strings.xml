@@ -19,6 +19,14 @@
     <string name="delete_all_data">DATU GUZTIAK EZABATU</string>
     <string name="save">Aldaketak Gorde</string>
     <string name="mode_selector_desc">Modu aukeratzailea</string>
+    <string name="loading_players">Jokalariak kargatzen...</string>
+    <string name="cancel_action">UTZI</string>
+    <string name="hud_kills">Hilketak: %d</string>
+    <string name="hud_lives">Bizitzak: %d</string>
+    <string name="hud_time">Denbora: %s</string>
+    <string name="win_title">IRABAZI DUZU!</string>
+    <string name="lose_title">GALDU DUZU</string>
+    <string name="back_to_menu">MENURA ITZULI</string>
     <!-- Karruselaren Koloreak -->
     <string name="color_gold">URREZTATUA</string>
     <string name="color_orange">LARANJA</string>

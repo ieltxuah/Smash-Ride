@@ -43,6 +43,10 @@ public class TranslationManager {
     private WeakReference<Activity> boundActivityRef;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    public interface OnRawTranslationListener {
+        void onTranslationComplete(String translatedText);
+    }
+
     private TranslationManager(@NonNull Context appContext) {
         this.appCtx = appContext.getApplicationContext();
     }
@@ -156,6 +160,16 @@ public class TranslationManager {
                 translator.translate(sourceText).addOnSuccessListener(translated -> postUpdateViewText(view, translated));
             }
         }
+    }
+
+    public void translateRaw(String text, OnRawTranslationListener listener) {
+        if (targetMlKit == null || translator == null) {
+            listener.onTranslationComplete(text);
+            return;
+        }
+        translator.translate(text)
+                .addOnSuccessListener(listener::onTranslationComplete)
+                .addOnFailureListener(e -> listener.onTranslationComplete(text));
     }
 
     // Añade esto al final de TranslationManager.java

@@ -10,8 +10,19 @@ public class Joystick {
     private boolean isActive;
     private static final int CROSSHAIR_RADIUS = 100;
 
+    // Nueva variable para el color seleccionado por el usuario
+    private int themeColor = Color.RED; // Rojo por defecto
+
     public Joystick() {
         this.isActive = false;
+    }
+
+    /**
+     * Permite cambiar el color del mando móvil del joystick
+     * @param color Color en formato hexadecimal (int)
+     */
+    public void setThemeColor(int color) {
+        this.themeColor = color;
     }
 
     public void touchDown(float x, float y) {
@@ -46,21 +57,33 @@ public class Joystick {
     }
 
     public float getSpeed(Player player) {
-        if (player.isColliding()) return 0; // No velocidad si está colisionando
+        if (player.isColliding()) return 0;
 
         float joystickDistanceToCenter = (float) Math.sqrt(
                 Math.pow(joystickX - controlX, 2) +
                         Math.pow(joystickY - controlY, 2));
 
-        float speed = (joystickDistanceToCenter / CROSSHAIR_RADIUS) * 10; // Velocidad máxima: 10
+        float speed = (joystickDistanceToCenter / CROSSHAIR_RADIUS) * 10;
         return Math.min(speed, 10);
     }
 
     public float getAngle(Player player) {
-        if (player.isColliding()) return player.getAngle(); // No cambio de ángulo si está colisionando
+        // 1. Si el jugador está bloqueado por colisión o el joystick NO está siendo tocado
+        if (player.isColliding() || !isActive) {
+            return player.getAngle(); // Devolvemos el ángulo actual para que no rote
+        }
 
-        return (float) Math.toDegrees(Math.atan2(joystickY - controlY, joystickX - controlX));
-    }
+        float deltaX = joystickX - controlX;
+        float deltaY = joystickY - controlY;
+
+        // 2. Si el joystick está activo pero justo en el centro (distancia cero)
+        // también devolvemos el ángulo actual para evitar el salto a 0 grados
+        if (deltaX == 0 && deltaY == 0) {
+            return player.getAngle();
+        }
+
+        // 3. Solo si hay movimiento real calculamos el nuevo ángulo
+        return (float) Math.toDegrees(Math.atan2(deltaY, deltaX));    }
 
     public boolean isActive() {
         return isActive;
@@ -68,13 +91,29 @@ public class Joystick {
 
     public void draw(Canvas canvas) {
         if (isActive) {
-            canvas.drawCircle(controlX, controlY, CROSSHAIR_RADIUS, createPaint(Color.argb(128, 128, 128, 128)));
-            canvas.drawCircle(joystickX, joystickY, 30, createPaint(Color.RED));
+            // 1. DIBUJO DEL CÍRCULO EXTERIOR (Base estática)
+            // Usamos un blanco muy translúcido para un acabado moderno y "glassmorphism"
+            Paint outerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            outerPaint.setColor(Color.WHITE);
+            outerPaint.setAlpha(40); // Muy transparente (0-255)
+            canvas.drawCircle(controlX, controlY, CROSSHAIR_RADIUS, outerPaint);
+
+            // 2. DIBUJO DEL MANDO MÓVIL (Stick)
+            // Usamos el color del tema seleccionado desde los ajustes
+            Paint innerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            innerPaint.setColor(themeColor);
+            // Opcional: añadimos un poco de transparencia para que no sea un color plano opaco
+            innerPaint.setAlpha(200);
+
+            // Dibujamos el mando con radio 35 (ligeramente más grande que antes para mejor UX)
+            canvas.drawCircle(joystickX, joystickY, 35, innerPaint);
         }
     }
 
+    // El método createPaint original ya no es necesario ya que instanciamos Paints con Anti-Alias,
+    // pero lo mantenemos para no romper posibles llamadas externas si existieran fuera de esta clase.
     private Paint createPaint(int color) {
-        Paint paint = new Paint();
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setColor(color);
         return paint;
     }
