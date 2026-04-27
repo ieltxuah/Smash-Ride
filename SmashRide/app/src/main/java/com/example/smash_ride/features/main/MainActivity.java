@@ -49,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
         // --- UX: Cargar GIF de fondo con el Decodificador abstraído ---
         ImageView gifBackground = findViewById(R.id.background_gif);
         if (gifBackground != null) {
-            GifHardwareDecoder.loadGif(this, gifBackground, R.drawable.background_stars);
+            GifHardwareDecoder.loadGif(this, gifBackground, R.raw.background_stars);
         }
 
         notificationScheduler = new NotificationScheduler(this);
@@ -137,8 +137,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Botón Ajustes
-        findViewById(R.id.settings_button).setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.settings_button).setOnClickListener(v -> startSettings());
 
         // Selector de modo (Proximidad UX al botón Start)
         findViewById(R.id.mode_selector_circle).setOnClickListener(v -> showModeDialog());
@@ -203,6 +202,12 @@ public class MainActivity extends AppCompatActivity {
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         intent.putExtra(AppConstants.EXTRA_GAME_MODE, prefHelper.getGameMode());
         intent.putExtra(AppConstants.EXTRA_OFFLINE, true);
+        startActivity(intent);
+    }
+
+    private void startSettings() {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(intent);
     }
 

@@ -30,9 +30,12 @@ public class Player {
     private final float initialSpeed;
 
     // Estado de juego
-    private int lives = 6;
+    private int lives = 5;
     private int kills = 0;
     private boolean destroyed = false;
+    private boolean isInvincible = false;
+    private long invincibilityEndTime = 0;
+    private Player lastHitter;
 
     public Player(String name, float x, float y, float initialAngle, int speed) {        this.name = name;
         this.xPos = x;
@@ -76,6 +79,11 @@ public class Player {
 
     public void draw(Canvas canvas) {
         if (destroyed) return;
+
+        // Si es invencible, parpadea (se dibuja frame sí, frame no)
+        if (isInvincible() && (System.currentTimeMillis() % 200 < 100)) {
+            return;
+        }
 
         if (playerBitmap != null) {
             // 1. Guardar el estado actual del canvas
@@ -135,6 +143,19 @@ public class Player {
         }
     }
 
+    public void setInvincible(long durationMs) {
+        this.isInvincible = true;
+        this.invincibilityEndTime = System.currentTimeMillis() + durationMs;
+    }
+
+    public boolean isInvincible() {
+        // Si el tiempo actual superó el final, desactivamos automáticamente
+        if (isInvincible && System.currentTimeMillis() > invincibilityEndTime) {
+            isInvincible = false;
+        }
+        return isInvincible;
+    }
+
     public void setSpeed(float speed) {
         if (destroyed) return;
         this.speed = speed;
@@ -165,6 +186,14 @@ public class Player {
         this.yPos = y;
     }
 
+    public void setLastHitter(Player hitter) {
+        this.lastHitter = hitter;
+    }
+
+    public Player getLastHitter() {
+        return lastHitter;
+    }
+
     public void resetPosition() {
         if (destroyed) {
             this.xPos = -1000f;
@@ -178,6 +207,10 @@ public class Player {
         this.angle = initialAngle;
         setColliding(false);
         this.speed = initialSpeed;
+
+        // 2 segundos de protección al reaparecer o empezar
+        this.lastHitter = null; // Limpiar el agresor al resetear
+        setInvincible(2000);
     }
 
     public float getXPos() {
@@ -250,13 +283,4 @@ public class Player {
         markDestroyed();
     }
 
-    public void reviveToInitial() {
-        destroyed = false;
-        lives = 6;
-        kills = 0;
-        this.xPos = initialX;
-        this.yPos = initialY;
-        this.speed = initialSpeed;
-        this.isColliding = false;
-    }
 }

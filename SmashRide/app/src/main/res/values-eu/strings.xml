@@ -21,6 +21,9 @@
     <string name="mode_selector_desc">Modu aukeratzailea</string>
     <string name="loading_players">Jokalariak kargatzen...</string>
     <string name="cancel_action">UTZI</string>
+    <string name="hud_kills">Hilketak: %d</string>
+    <string name="hud_lives">Bizitzak: %d</string>
+    <string name="hud_time">Denbora: %s</string>
     <!-- Karruselaren Koloreak -->
     <string name="color_gold">URREZTATUA</string>
     <string name="color_orange">LARANJA</string>

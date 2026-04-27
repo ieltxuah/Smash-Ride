@@ -21,6 +21,9 @@
     <string name="mode_selector_desc">Selector de modo</string>
     <string name="loading_players">Cargando jugadores...</string>
     <string name="cancel_action">CANCELAR</string>
+    <string name="hud_kills">Bajas: %d</string>
+    <string name="hud_lives">Vidas: %d</string>
+    <string name="hud_time">Tiempo: %s</string>
     <!-- Colores para el Carrusel -->
     <string name="color_gold">DORADO</string>
     <string name="color_orange">NARANJA</string>

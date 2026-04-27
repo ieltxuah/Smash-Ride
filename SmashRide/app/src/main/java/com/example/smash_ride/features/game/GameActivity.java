@@ -60,7 +60,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         // 2. CARGAR GIF DE FONDO POR HARDWARE
         ImageView backgroundGif = findViewById(R.id.background_gif);
         if (backgroundGif != null) {
-            GifHardwareDecoder.loadGif(this, backgroundGif, R.drawable.background_stars);
+            GifHardwareDecoder.loadGif(this, backgroundGif, R.raw.background_stars);
         }
 
         // 3. INICIALIZAR MANAGER DE TRADUCCIÓN
@@ -89,9 +89,12 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         }
 
         // Obtener configuración del Intent
-        String mode = getIntent().getStringExtra("GAME_MODE");
-        if ("TIMER".equals(mode)) selectedMode = GameView.GameMode.TIMER;
-        else selectedMode = GameView.GameMode.LIVES;
+        String modeExtra = getIntent().getStringExtra(AppConstants.EXTRA_GAME_MODE);
+        if (AppConstants.MODE_TIMER.equals(modeExtra)) {
+            selectedMode = GameView.GameMode.TIMER;
+        } else {
+            selectedMode = GameView.GameMode.LIVES;
+        }
         offlineMode = getIntent().getBooleanExtra("OFFLINE", true);
 
         // 5. INICIAR CARGA
@@ -154,7 +157,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
 
                 centerX = getResources().getDisplayMetrics().widthPixels / 2f;
                 centerY = getResources().getDisplayMetrics().heightPixels / 2f;
-                radius = Math.min(centerX, centerY) - 100;
+                radius = Math.min(centerX, centerY) - 200;
 
                 // Definimos {X, Y, ÁnguloInicial}
                 // Los ángulos están calculados para que miren hacia el centro del área
