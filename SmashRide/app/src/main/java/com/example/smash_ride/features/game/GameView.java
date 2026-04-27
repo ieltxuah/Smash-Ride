@@ -613,7 +613,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }
@@ -625,7 +625,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }
@@ -637,7 +637,7 @@ public class GameView extends SurfaceView implements Runnable {
         // Al terminar el juego, volvemos a la música de menú
         SoundManager.getInstance().playMenuMusic(getContext());
 
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        new Handler(Looper.getMainLooper()).post(() -> {
             if (gameOverListener != null) gameOverListener.onGameOver();
         });
     }

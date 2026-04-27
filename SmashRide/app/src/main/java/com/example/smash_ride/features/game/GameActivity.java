@@ -17,7 +17,6 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.ranking.RankingActivity;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 
@@ -236,7 +235,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
                 startActivity(new Intent(this, LoseActivity.class));
             }
         } else {
-            Intent i = new Intent(this, RankingActivity.class);
+            Intent i = new Intent(this, RankingGameActivity.class);
             ArrayList<String> names = new ArrayList<>();
             ArrayList<Integer> kills = new ArrayList<>();
             for (Player p : players) {

@@ -23,6 +23,9 @@
     <string name="hud_kills">Kills: %d</string>
     <string name="hud_lives">Lives: %d</string>
     <string name="hud_time">Time: %s</string>
+    <string name="win_title">YOU WIN!</string>
+    <string name="lose_title">GAME OVER</string>
+    <string name="back_to_menu">BACK TO MENU</string>
     <!-- Colors for Carousel -->
     <string name="color_gold">GOLD</string>
     <string name="color_orange">ORANGE</string>

@@ -4,7 +4,7 @@
     <string name="menu_title">Menú del juego</string>
     <string name="start_button">Iniciar partida</string>
     <string name="settings_button">Ajustes</string>
-    <string name="ranking_button">Clasificacion</string>
+    <string name="ranking_button">Clasificación</string>
     <string name="select_mode">Seleccionar modo</string>
     <string name="mode_lives">Corazón (Vidas)</string>
     <string name="mode_timer">Temporizador (Tiempo)</string>
@@ -24,6 +24,9 @@
     <string name="hud_kills">Bajas: %d</string>
     <string name="hud_lives">Vidas: %d</string>
     <string name="hud_time">Tiempo: %s</string>
+    <string name="win_title">¡HAS GANADO!</string>
+    <string name="lose_title">HAS PERDIDO</string>
+    <string name="back_to_menu">VOLVER AL MENÚ</string>
     <!-- Colores para el Carrusel -->
     <string name="color_gold">DORADO</string>
     <string name="color_orange">NARANJA</string>
