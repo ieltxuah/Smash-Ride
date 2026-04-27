@@ -455,45 +455,36 @@ public class GameView extends SurfaceView implements Runnable {
     private void checkCollision(Player player) {
         if (player == null || player.isDestroyed()) return;
 
-        // Calculamos el centro del sprite (asumiendo tamaño 50x50 como en tus hitboxes)
-        float carCenterX = player.getXPos();
-        float carCenterY = player.getYPos();
-
-        float dx = carCenterX - centerX;
-        float dy = carCenterY - centerY;
+        float dx = player.getXPos() - centerX;
+        float dy = player.getYPos() - centerY;
         float distanceFromCenter = (float) Math.hypot(dx, dy);
 
         if (distanceFromCenter >= radius) {
             if (player.isInvincible()) {
-                // --- NUEVA LÓGICA: Pared física para invencibles ---
-                // Calculamos el ángulo desde el centro de la luna hacia el jugador
+                // ... lógica de pared para invencibles (mantenla igual) ...
                 double angle = Math.atan2(dy, dx);
-
-                // Reposicionamos al jugador exactamente en el borde del radio
-                float newX = centerX + (float) (Math.cos(angle) * (radius - 1));
-                float newY = centerY + (float) (Math.sin(angle) * (radius - 1));
-
-                player.setXPos(newX);
-                player.setYPos(newY);
-
-                // Opcional: Detener la velocidad para que no "vibre" contra la pared
+                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 1)));
+                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 1)));
                 player.setSpeed(0);
-
             } else {
-                // --- Lógica normal: Morir o resetear ---
-                // Si alguien lo golpeó antes de caer, ese alguien se lleva la kill
+                // --- CORRECCIÓN AQUÍ ---
+                // 1. Identificar si hay un asesino ANTES de resetear o perder vida
                 Player killer = player.getLastHitter();
+
+                // 2. Si alguien lo empujó, le damos la Kill CADA VEZ que pierda una vida
                 if (killer != null && killer != player) {
                     killer.addKill();
+                    Log.d("GameLogic", killer.name + " le quitó una vida a " + player.name);
                 }
 
+                // 3. Procesar la pérdida de vida
                 if (gameMode == GameMode.LIVES) {
-                    if (!player.isDestroyed()) {
-                        player.loseLife();
-                        if (players.indexOf(player) == 0) vibratePhoneThrottled();
-                    }
+                    player.loseLife();
+                    if (players.indexOf(player) == 0) vibratePhoneThrottled();
                 }
-                player.resetPosition(); // Esto resetea lastHitter a null
+
+                // 4. Reposicionar (esto limpia el lastHitter automáticamente en Player.java)
+                player.resetPosition();
             }
         }
     }
@@ -520,63 +511,71 @@ public class GameView extends SurfaceView implements Runnable {
         float distance = (float) Math.hypot(dx, dy);
         if (distance == 0f) distance = 0.001f;
 
+        // Vibrar si el jugador local está involucrado
         int idxA = players.indexOf(playerA);
         int idxB = players.indexOf(playerB);
         if (idxA == 0 || idxB == 0) vibratePhoneThrottled();
 
         float pushX = dx / distance;
         float pushY = dy / distance;
-        float speedA = playerA.getSpeed();
-        float speedB = playerB.getSpeed();
+
+        // Determinar quién es el agresor (más rápido) y quién el afectado (más lento)
+        Player affected;
+        Player faster;
 
         if (playerA.getSpeed() > playerB.getSpeed()) {
-            playerB.setLastHitter(playerA); // A golpeó a B
-        } else if (playerB.getSpeed() > playerA.getSpeed()) {
-            playerA.setLastHitter(playerB); // B golpeó a A
-        } else {
-            playerA.setLastHitter(playerB);
             playerB.setLastHitter(playerA);
+            affected = playerB;
+            faster = playerA;
+        } else if (playerB.getSpeed() > playerA.getSpeed()) {
+            playerA.setLastHitter(playerB);
+            affected = playerA;
+            faster = playerB;
+        } else {
+            // Empate de velocidad: ambos retroceden, no hay "killer" claro
+            applyRetroceForBoth(playerA, playerB, pushX, pushY, playerA.getSpeed());
+            return;
         }
 
-        if (speedA == speedB) {
-            applyRetroceForBoth(playerA, playerB, pushX, pushY, Math.max(speedA, speedB));
-        } else {
-            Player affected = playerA.getSpeed() < playerB.getSpeed() ? playerA : playerB;
-            Player faster = playerA.getSpeed() >= playerB.getSpeed() ? playerA : playerB;
-            float retreatSpeed = faster.getSpeed();
-            affected.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
-            affected.disableJoystick();
-            for (int i = 0; i <= 10; i++) {
-                final int step = i;
-                final long delay = step * 10L;
-                final float dxPush = pushX;
-                final float dyPush = pushY;
-                final float rSpeed = retreatSpeed;
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (affected.isDestroyed()) return;
-                    affected.setXPos(affected.getXPos() - dxPush * rSpeed);
-                    affected.setYPos(affected.getYPos() - dyPush * rSpeed);
-                    float cx = affected.getXPos() + 25;
-                    float cy = affected.getYPos() + 25;
-                    float dist = (float) Math.hypot(cx - centerX, cy - centerY);
-                    if (dist >= radius) {
-                        if (!affected.isDestroyed()) {
-                            if (gameMode == GameMode.LIVES) {
-                                affected.loseLife();
-                                if (affected.isDestroyed() && !faster.isDestroyed() && faster != affected) {
-                                    faster.addKill();
-                                }
-                            } else {
-                                // TIMER: do not destroy, just addkill
-                                if (!faster.isDestroyed() && faster != affected)
-                                    faster.addKill();
-                            }
-                        }
-                        affected.resetPosition();
+        // Aplicar retroceso físico al jugador afectado
+        float retreatSpeed = faster.getSpeed();
+        // Invertimos el ángulo del afectado para que salga despedido en dirección opuesta al choque
+        float angleToPush = (affected == playerA) ? (float) Math.atan2(dy, dx) : (float) Math.atan2(-dy, -dx);
+
+        affected.disableJoystick();
+
+        for (int i = 0; i <= 10; i++) {
+            final int step = i;
+            final long delay = step * 10L;
+            final float moveX = (float) Math.cos(angleToPush) * retreatSpeed;
+            final float moveY = (float) Math.sin(angleToPush) * retreatSpeed;
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (affected.isDestroyed()) return;
+
+                // Mover por impacto
+                affected.setXPos(affected.getXPos() + moveX);
+                affected.setYPos(affected.getYPos() + moveY);
+
+                // Comprobar si se sale de la luna DURANTE el retroceso
+                float dist = (float) Math.hypot(affected.getXPos() - centerX, affected.getYPos() - centerY);
+                if (dist >= radius) {
+                    // --- CAMBIO CLAVE AQUÍ ---
+                    // Si hay un agresor, le damos la Kill CADA VEZ que el otro pierda una vida
+                    if (!faster.isDestroyed()) {
+                        faster.addKill();
                     }
-                    if (step == 10) affected.enableJoystick();
-                }, delay);
-            }
+
+                    if (gameMode == GameMode.LIVES) {
+                        affected.loseLife();
+                    }
+
+                    // Reposicionar al jugador (esto limpia el lastHitter internamente)
+                    affected.resetPosition();
+                }
+
+                if (step == 10) affected.enableJoystick();
+            }, delay);
         }
     }
 
