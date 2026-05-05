@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
-    // alias(libs.plugins.android.application)
 }
 
 android {
@@ -37,22 +36,21 @@ dependencies {
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-firestore")
-
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-auth")
+    
     // ML Kit Translate
     implementation("com.google.mlkit:translate:17.0.3")
 
     // AndroidX
     implementation("androidx.work:work-runtime:2.8.1")
     implementation("androidx.core:core:1.9.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
 
     // Default
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
-    implementation(libs.firebase.database)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

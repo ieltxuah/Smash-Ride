@@ -23,6 +23,13 @@ import androidx.recyclerview.widget.LinearSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.smash_ride.R;
+import android.content.Intent;
+import androidx.annotation.NonNull;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.AuthResult;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
@@ -103,6 +110,21 @@ public class SettingsActivity extends AppCompatActivity {
         saveButton.setOnClickListener(v -> saveAndExit());
         deleteDataButton.setOnClickListener(v -> showDeleteConfirmation());
 
+        private void showDeleteConfirmation() {
+            new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.delete_all_data))
+                    .setMessage("¿Estás seguro de borrar todo el progreso?")
+                    .setPositiveButton("BORRAR", (dialog, which) -> {
+                        prefHelper.setMusicVolume(2);
+                        prefHelper.setEffectsVolume(2);
+                        SoundManager.getInstance().updateVolume(this);
+                        Toast.makeText(this, "Datos borrados", Toast.LENGTH_SHORT).show();
+                        loadSettings();
+                    })
+                    .setNegativeButton("CANCELAR", null)
+                    .show();
+        }
+
         setupSeekBarListeners();
     }
 
@@ -127,8 +149,22 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    private FirebaseAuth mAuth;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_settings);
+
+        // Initialize Firebase Auth
+        mAuth = FirebaseAuth.getInstance();
+
+        // Setup views and load settings...
+    }
+
     private void setupUserSection() {
-        boolean isLoggedIn = false; // Cambiar por lógica real de tu Auth
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        boolean isLoggedIn = (currentUser != null);
 
         if (isLoggedIn) {
             if(authStatusLabel != null) authStatusLabel.setText(R.string.status_connected);
@@ -141,7 +177,7 @@ public class SettingsActivity extends AppCompatActivity {
                             .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
                 }
             }
-            if(userNameText != null) userNameText.setText("STAR_USER");
+            if(userNameText != null) userNameText.setText(currentUser.getEmail());
 
             // Si está logueado, mostramos el botón de borrar datos
             if(deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
@@ -202,6 +238,50 @@ public class SettingsActivity extends AppCompatActivity {
         // UX: Evitar pantallazo blanco (Transición instantánea)
         overridePendingTransition(0, 0);
         finish();
+    }
+
+    private void login() {
+        String email = "user@example.com"; // Replace with actual email input
+        String password = "password123"; // Replace with actual password input
+
+        mAuth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+                @Override
+                public void onComplete(@NonNull Task<AuthResult> task) {
+                    if (task.isSuccessful()) {
+                        FirebaseUser user = mAuth.getCurrentUser();
+                        updateUI(user);
+                    } else {
+                        Toast.makeText(SettingsActivity.this, "Authentication failed.",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+    }
+
+    private void logout() {
+        mAuth.signOut();
+        updateUI(null);
+    }
+
+    private void updateUI(FirebaseUser user) {
+        if (user != null) {
+            userNameText.setText(user.getEmail());
+            loginLogoutButton.setText(R.string.logout_action);
+            loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#FF5252"));
+            if (loginLogoutButton instanceof com.google.android.material.button.MaterialButton) {
+                ((com.google.android.material.button.MaterialButton) loginLogoutButton)
+                        .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
+            }
+        } else {
+            userNameText.setText("STAR_USER");
+            loginLogoutButton.setText(R.string.login_action);
+            loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
+            if (loginLogoutButton instanceof com.google.android.material.button.MaterialButton) {
+                ((com.google.android.material.button.MaterialButton) loginLogoutButton)
+                        .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
+            }
+        }
     }
 
     private void loadSettings() {
@@ -290,6 +370,9 @@ public class SettingsActivity extends AppCompatActivity {
     @Override protected void onResume() {
         super.onResume();
         SoundManager.getInstance().resumeMusic();
+
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        updateUI(currentUser);
     }
 
     @Override protected void onPause() {
