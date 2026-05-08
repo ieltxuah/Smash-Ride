@@ -34,10 +34,14 @@ android {
 }
 
 dependencies {
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    // Firebase BOM
+    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-auth")
+
+    // GOOGLE SIGN-IN (Base)
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
 
     // ML Kit Translate
     implementation("com.google.mlkit:translate:17.0.3")

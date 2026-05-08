@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,9 +27,20 @@ import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.features.auth.AuthManager;
 import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.AuthCredential;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.GoogleAuthProvider;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +49,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private TranslationManager translationManager;
     private PreferenceHelper prefHelper;
+    private AuthManager authManager;
 
     private Spinner langSpinner;
     private SeekBar musicSeekBar;
@@ -53,9 +66,13 @@ public class SettingsActivity extends AppCompatActivity {
     private String selectedColorTag = "dorado";
     private String currentLang;
 
+    private static final int RC_SIGN_IN = 9001;
+    private GoogleSignInClient mGoogleSignInClient;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+        authManager = new AuthManager(prefHelper);
         currentLang = prefHelper.getLanguage();
 
         // 1. Aplicar idioma al contexto base antes de inflar vistas
@@ -71,6 +88,7 @@ public class SettingsActivity extends AppCompatActivity {
         // 3. Inicializar vistas y cargar datos (Música y Volumen incluidos)
         initViews();
         loadSettings();
+        setupGoogleSDK();
         setupUserSection();
         setupColorCarousel();
 
@@ -127,8 +145,25 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    private void setupGoogleSDK() {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build();
+        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+
+        loginLogoutButton.setOnClickListener(v -> {
+            if (!authManager.isLoggedIn()) {
+                signIn();
+            } else {
+                signOut();
+            }
+        });
+    }
+
     private void setupUserSection() {
-        boolean isLoggedIn = false; // Cambiar por lógica real de tu Auth
+        FirebaseUser user = authManager.getCurrentUser();
+        boolean isLoggedIn = (user != null);
 
         if (isLoggedIn) {
             if(authStatusLabel != null) authStatusLabel.setText(R.string.status_connected);
@@ -141,7 +176,7 @@ public class SettingsActivity extends AppCompatActivity {
                             .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
                 }
             }
-            if(userNameText != null) userNameText.setText("STAR_USER");
+            userNameText.setText(user.getDisplayName() != null ? user.getDisplayName() : "STAR_USER");
 
             // Si está logueado, mostramos el botón de borrar datos
             if(deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
@@ -160,6 +195,46 @@ public class SettingsActivity extends AppCompatActivity {
 
             // UX: Si no está logueado, ocultamos el botón de borrar para evitar accidentes o por privacidad
             if(deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void signIn() {
+        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+        startActivityForResult(signInIntent, RC_SIGN_IN);
+    }
+
+    private void signOut() {
+        authManager.logout(() -> {
+            mGoogleSignInClient.signOut(); // Limpieza del cliente de Google
+            setupUserSection();
+            Toast.makeText(this, "Sesión cerrada", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                // Delegamos la validación de Firebase al AuthManager
+                authManager.signInWithGoogle(account.getIdToken(), new AuthManager.AuthCallback() {
+                    @Override
+                    public void onSuccess(FirebaseUser user) {
+                        setupUserSection();
+                        Toast.makeText(SettingsActivity.this, "¡Bienvenido " + user.getDisplayName() + "!", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Toast.makeText(SettingsActivity.this, "Error: " + error, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (ApiException e) {
+                Log.e("Settings", "Google sign in failed", e);
+            }
         }
     }
 

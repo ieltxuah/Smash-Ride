@@ -20,6 +20,7 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import androidx.annotation.NonNull;
 import androidx.core.content.res.ResourcesCompat;
 
 import com.example.smash_ride.R;
@@ -27,8 +28,17 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.translation.TranslationManager;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class GameView extends SurfaceView implements Runnable {
     private GameOverListener gameOverListener;
@@ -78,8 +88,18 @@ public class GameView extends SurfaceView implements Runnable {
     private long lastVibrationTimeMs = 0;
     private static final long VIBRATION_THROTTLE_MS = 200;
 
+    private DatabaseReference roomRef;
+    private int mySlot = -1;
+    private String roomId;
+    private PreferenceHelper prefHelper;
+    private final Map<Integer, String> slotToIdMap = new HashMap<>();
+    int currentHostSlot = 0;
+    private boolean resultTriggered = false; // Nueva variable de clase para evitar abrir 20 activities
+    private long lastProcessedHitTime = 0;
+
     public GameView(Context context, List<Player> players, int color) {
         super(context);
+        this.prefHelper = new PreferenceHelper(context);
         this.players = players;
         this.joystick = new Joystick();
         joystick.setThemeColor(color);
@@ -154,6 +174,7 @@ public class GameView extends SurfaceView implements Runnable {
         if (oldw == 0 && oldh == 0) {
             for (Player p : players) {
                 p.resetPosition();
+                p.setInvincible(2000); // 2 segundos de gracia al empezar
             }
         }
     }
@@ -190,128 +211,178 @@ public class GameView extends SurfaceView implements Runnable {
         if (delta <= 0) delta = 16;
         lastUpdateTimeMs = now;
 
-        if (ended) return;
+        if (ended || radius <= 0 || players == null || players.isEmpty()) return;
 
-        if (gameMode == GameMode.TIMER) {
-            timerMs -= delta;
-            if (timerMs <= 0) {
-                endMatchAndShowRanking();
-                return;
-            }
+        int localIdx = (offline) ? 0 : mySlot;
+        if (localIdx < 0 || localIdx >= players.size()) return;
+        Player player1 = players.get(localIdx);
+
+        // 1. GESTIÓN DE MUERTE LOCAL
+        if (!offline && player1.isDestroyed() && !resultTriggered) {
+            resultTriggered = true;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (gameOverListener != null) gameOverListener.onGameOver();
+            });
+            if (mySlot != currentHostSlot) { ended = true; return; }
         }
 
-        Player player1 = null;
-        if (!players.isEmpty() && !players.get(0).isDestroyed()) player1 = players.get(0);
-        if (player1 == null) {
-            if (gameMode == GameMode.LIVES) {
-                endMatchNoWinner();
-                return;
-            } else {
-                endMatchAndShowRanking();
-                return;
-            }
-        }
-
-        if (player1.isColliding()) {
-            if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
-                long gain = (long) (delta / RECHARGE_MULTIPLIER);
-                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
-            }
-            player1.setSpeed(0f);
-        } else {
-            // Gestión de carga de boost
-            if (boostPointerId != -1) {
-                if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
-                    long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
-                    chargeAvailableMs -= transfer;
-                    boostStoredMs += transfer;
+        // 2. PROCESAR INPUT LOCAL Y BOOST
+        if (!player1.isDestroyed()) {
+            if (player1.isColliding()) {
+                // Recargar mientras se está en colisión/rebote
+                if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
+                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
                 }
-                boostActive = boostStoredMs > 0;
+                player1.setSpeed(0f);
             } else {
-                boostActive = false;
-                boostStoredMs = 0L;
-                if (chargeAvailableMs < FULL_CHARGE_MS) {
-                    long gain = (long) (delta / RECHARGE_MULTIPLIER);
-                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + gain);
-                }
-            }
-
-            float baseSpeed = joystick.getSpeed(player1);
-            float effectiveSpeed = baseSpeed;
-            if (boostActive && boostStoredMs > 0) {
-                effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
-                long consume = Math.min(delta, boostStoredMs);
-                boostStoredMs -= consume;
-                if (boostStoredMs <= 0) {
-                    boostStoredMs = 0;
+                // Lógica de carga de Boost (Acumular mientras mantienes pulsado)
+                if (boostPointerId != -1) {
+                    if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
+                        long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
+                        chargeAvailableMs -= transfer;
+                        boostStoredMs += transfer;
+                    }
+                    boostActive = boostStoredMs > 0;
+                } else {
+                    // Al soltar se desactiva y empieza a recargar la barra general
                     boostActive = false;
+                    boostStoredMs = 0L;
+                    if (chargeAvailableMs < FULL_CHARGE_MS) {
+                        chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
+                    }
                 }
-            }
 
-            if (!player1.isColliding()) {
+                float baseSpeed = joystick.getSpeed(player1);
+                float effectiveSpeed = baseSpeed;
+
+                // Si hay boost acumulado, aplicamos el multiplicador
+                if (boostActive && boostStoredMs > 0) {
+                    effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
+                    boostStoredMs -= Math.min(delta, boostStoredMs);
+                }
+
                 player1.setSpeed(effectiveSpeed);
                 player1.setAngle(joystick.getAngle(player1));
-            } else {
-                player1.setSpeed(0f);
+            }
+
+            // Enviar mi movimiento (incluyendo si el boost está activo visualmente)
+            if (!offline && mySlot != currentHostSlot) {
+                syncMyMovement(player1.getAngle(), player1.getSpeed(), boostActive);
             }
         }
 
-        for (Player p : players) {
-            if (p.isDestroyed()) continue;
-            p.update();
-        }
-
-        if (offline) {
+        // 3. LÓGICA DE RED (MAESTRO vs ESCLAVO)
+        if (offline || mySlot == currentHostSlot) {
+            for (Player p : players) {
+                if (p.isDestroyed()) continue;
+                p.update();
+                checkCollision(p); // El Maestro aplica las muertes y rebotes
+            }
+            // Colisiones entre jugadores
             for (int i = 0; i < players.size(); i++) {
-                Player a = players.get(i);
-                // Si el jugador 'a' está destruido o es invencible, no puede chocar ni ser chocado
-                if (a.isDestroyed() || a.isInvincible()) continue;
-
                 for (int j = i + 1; j < players.size(); j++) {
-                    Player b = players.get(j);
-                    // Si el jugador 'b' es invencible o está destruido, ignoramos
-                    if (b.isDestroyed() || b.isInvincible()) continue;
-
-                    float dx = a.getXPos() - b.getXPos();
-                    float dy = a.getYPos() - b.getYPos();
-                    float dist = (float) Math.hypot(dx, dy);
-                    if (dist < 50f) handleCollision(a, b);
+                    Player a = players.get(i); Player b = players.get(j);
+                    if (a.isDestroyed() || b.isDestroyed() || a.isInvincible() || b.isInvincible()) continue;
+                    if (Math.hypot(a.getXPos() - b.getXPos(), a.getYPos() - b.getYPos()) < 55f) {
+                        handleCollision(a, b);
+                    }
                 }
             }
+            if (!offline) syncMasterTruth(currentHostSlot);
+            checkMatchEndConditions();
         } else {
-            if (player1 != null && !player1.isInvincible()) {
-                checkPlayerCollisions(player1);
+            // ESCLAVO: Actualizar posiciones de otros y bloqueo local
+            for (Player p : players) {
+                p.setIsRemote(p.slot != mySlot);
+                p.update();
+                if (p.slot == mySlot && !p.isDestroyed()) {
+                    // Bloqueo visual para que el esclavo no atraviese la luna
+                    float dx = p.getXPos() - centerX;
+                    float dy = p.getYPos() - centerY;
+                    if (Math.hypot(dx, dy) >= radius) {
+                        double ang = Math.atan2(dy, dx);
+                        p.setXPos(centerX + (float)(Math.cos(ang) * (radius - 5)));
+                        p.setYPos(centerY + (float)(Math.sin(ang) * (radius - 5)));
+                    }
+                }
+            }
+        }
+    }
+
+    private void checkMatchEndConditions() {
+        if (ended) return;
+
+        // Caso A: Modo Vidas (Solo queda uno vivo)
+        int aliveCount = 0;
+        Player winner = null;
+
+        for (Player p : players) {
+            if (!p.isDestroyed()) {
+                aliveCount++;
+                winner = p;
             }
         }
 
-        for (Player p : players) {
-            if (p.isDestroyed()) continue;
-            checkCollision(p);
+        if (gameMode == GameMode.LIVES && aliveCount == 1) {
+            // Avisamos a Firebase que el juego terminó oficialmente
+            roomRef.child("winner_slot").setValue(winner.slot);
         }
 
-        int aliveCount = 0;
-        Player lastAlive = null;
-        for (Player p : players) {
-            if (!p.isDestroyed()) { aliveCount++; lastAlive = p; }
-        }
-
+        // En modo VIDAS, la partida acaba si queda 1 o 0 vivos
         if (gameMode == GameMode.LIVES) {
             if (aliveCount <= 1) {
-                if (aliveCount == 1 && lastAlive != null) {
-                    endMatchWithWinner(lastAlive);
-                } else {
-                    endMatchNoWinner();
-                }
-            }
-        } else if (gameMode == GameMode.TIMER) {
-            // in TIMER mode we only end when timer runs out OR if <=1 alive we go to ranking
-            timerMs -= delta;
-            if (timerMs <= 0) {
-                timerMs = 0;
-                // Aquí puedes llamar a tu lógica de fin de partida por tiempo
-                endMatchAndShowRanking();
+                ended = true;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (gameOverListener != null) gameOverListener.onGameOver();
+                });
             }
         }
+        // Caso B: Modo Tiempo (El tiempo llegó a 0)
+        else if (gameMode == GameMode.TIMER && timerMs <= 0) {
+            ended = true;
+            new Handler(Looper.getMainLooper()).post(this::endMatchAndShowRanking);
+        }
+    }
+
+    // Lo que envían TODOS (incluido el maestro para sus propios datos de input)
+    private void syncMyMovement(float angle, float speed, boolean boost) {
+        if (roomRef == null) return;
+        Map<String, Object> input = new HashMap<>();
+        input.put("angle", angle);
+        input.put("speed", speed);
+        input.put("boost", boost);
+        roomRef.child("players").child(prefHelper.getUserId()).child("input").updateChildren(input);
+    }
+
+
+    // SOLO el Maestro llama a esto para todos los jugadores
+    private void syncMasterTruth(int hostSlot) {
+        if (roomRef == null) return;
+        for (Player p : players) {
+            String uid = getUserIdBySlot(p.slot); // Ahora esto SI devolverá un UID
+            if (uid != null) {
+                Map<String, Object> state = new HashMap<>();
+                state.put("relX", p.getXPos() - centerX);
+                state.put("relY", p.getYPos() - centerY);
+                state.put("angle", p.getAngle());
+                state.put("lives", p.getLives());
+                state.put("kills", p.getKills());
+                state.put("inv", p.isInvincible());
+                roomRef.child("players").child(uid).child("state").updateChildren(state);
+            }
+        }
+    }
+
+    private void sendHitNotification(int targetSlot, float angleToRebound) {
+        String targetId = getUserIdBySlot(targetSlot);
+        if (targetId == null) return;
+
+        Map<String, Object> hitData = new HashMap<>();
+        hitData.put("hitAngle", angleToRebound);
+        hitData.put("hitTime", System.currentTimeMillis());
+
+        // Escribimos en un nodo especial "hit_event" dentro del jugador afectado
+        roomRef.child("players").child(targetId).child("hit_event").setValue(hitData);
     }
 
     private void draw() {
@@ -390,7 +461,10 @@ public class GameView extends SurfaceView implements Runnable {
     // 1. Asegúrate de que las variables de HUD y Paint estén bien definidas
     private void drawHUD(Canvas canvas) {
         if (players == null || players.isEmpty()) return;
-        Player p1 = players.get(0);
+        int localIdx = (offline) ? 0 : mySlot;
+        if (localIdx < 0 || localIdx >= players.size()) return;
+
+        Player me = players.get(localIdx);
 
         // Margenes de seguridad para evitar bordes y notches
         float marginX = 80f;
@@ -406,7 +480,7 @@ public class GameView extends SurfaceView implements Runnable {
         // --- PARTE IZQUIERDA: VIDAS O TIEMPO ---
         String leftText;
         if (gameMode == GameMode.LIVES) {
-            leftText = labelLives + p1.getLives();
+            leftText = labelLives + me.getLives();
         } else {
             // Formateo de tiempo mm:ss
             long timeToDisplay = Math.max(0, timerMs);
@@ -418,7 +492,7 @@ public class GameView extends SurfaceView implements Runnable {
         canvas.drawText(leftText, marginX, marginTop, textPaint);
 
         // --- PARTE DERECHA: KILLS ---
-        String killsText = labelKills + p1.getKills();
+        String killsText = labelKills + me.getKills();
         float killsWidth = textPaint.measureText(killsText);
         canvas.drawText(killsText, getWidth() - marginX - killsWidth, marginTop, textPaint);
 
@@ -452,39 +526,124 @@ public class GameView extends SurfaceView implements Runnable {
         canvas.drawRect(marginX, barTop, marginX + barWidth, barTop + barHeight, barPaint);
     }
 
+    public void setOnlineData(String roomId, int mySlot) {
+        this.roomId = roomId;
+        this.mySlot = mySlot;
+        this.roomRef = FirebaseDatabase.getInstance().getReference("rooms").child(roomId);
+        listenToOtherPlayers();
+    }
+
+    private String getUserIdBySlot(int slot) {
+        return slotToIdMap.get(slot);
+    }
+
+    private void sendHitEvent(int targetSlot, float angle) {
+        String targetId = getUserIdBySlot(targetSlot);
+        if (targetId == null) return;
+
+        Map<String, Object> hit = new HashMap<>();
+        hit.put("angle", angle);
+        hit.put("t", System.currentTimeMillis());
+
+        // Escribimos en un nodo temporal del afectado
+        roomRef.child("players").child(targetId).child("hit_event").setValue(hit);
+    }
+
+    private void listenToOtherPlayers() {
+        if (roomRef == null) return;
+        roomRef.child("players").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (!snapshot.exists()) return;
+
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    Integer slot = ds.child("slot").getValue(Integer.class);
+                    if (slot == null) continue;
+
+                    // Guardar UID para que el Maestro sepa a quién escribir
+                    slotToIdMap.put(slot, ds.getKey());
+
+                    Player p = null;
+                    for (Player pl : players) { if (pl.slot == slot) { p = pl; break; } }
+                    if (p == null) continue;
+
+                    // SI SOY YO (Esclavo): Escucho lo que el Maestro dice de mi vida y si me han golpeado
+                    if (slot == mySlot && mySlot != currentHostSlot) {
+                        DataSnapshot state = ds.child("state");
+                        if (state.exists()) {
+                            p.setLives(state.child("lives").getValue(Integer.class));
+                            p.setKills(state.child("kills").getValue(Integer.class));
+                            p.setInvincibleByNetwork(state.child("inv").getValue(Boolean.class));
+                            // Posición para reconciliación
+                            Float rx = state.child("relX").getValue(Float.class);
+                            Float ry = state.child("relY").getValue(Float.class);
+                            if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
+                        }
+
+                        // REBOTE: Escuchar si el maestro nos empujó
+                        DataSnapshot hit = ds.child("hit_event");
+                        if (hit.exists()) {
+                            long t = hit.child("t").getValue(Long.class);
+                            if (t > lastProcessedHitTime) {
+                                lastProcessedHitTime = t;
+                                p.forceRebound(hit.child("angle").getValue(Float.class));
+                            }
+                        }
+                    }
+                    // SI SON LOS DEMÁS:
+                    else if (slot != mySlot) {
+                        if (mySlot == currentHostSlot) {
+                            // Maestro lee inputs de otros
+                            DataSnapshot input = ds.child("input");
+                            if (input.exists()) {
+                                p.setAngle(input.child("angle").getValue(Float.class));
+                                p.setSpeed(input.child("speed").getValue(Float.class));
+                            }
+                        } else {
+                            // Esclavo lee posiciones de otros
+                            DataSnapshot state = ds.child("state");
+                            if (state.exists()) {
+                                Float rx = state.child("relX").getValue(Float.class);
+                                Float ry = state.child("relY").getValue(Float.class);
+                                Float ang = state.child("angle").getValue(Float.class);
+                                if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
+                                if (ang != null) {
+                                    p.setAngle(ang);
+                                }
+                                p.setLives(state.child("lives").getValue(Integer.class));
+                                p.setKills(state.child("kills").getValue(Integer.class));
+                            }
+                        }
+                    }
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
     private void checkCollision(Player player) {
         if (player == null || player.isDestroyed()) return;
-
         float dx = player.getXPos() - centerX;
         float dy = player.getYPos() - centerY;
-        float distanceFromCenter = (float) Math.hypot(dx, dy);
+        float dist = (float) Math.hypot(dx, dy);
 
-        if (distanceFromCenter >= radius) {
-            if (player.isInvincible()) {
-                // ... lógica de pared para invencibles (mantenla igual) ...
-                double angle = Math.atan2(dy, dx);
-                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 1)));
-                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 1)));
+        if (dist >= radius) {
+            double angle = Math.atan2(dy, dx);
+
+            // 1. LÓGICA DE BLOQUEO (Para todos: Maestro, Esclavo o Invencible)
+            // Bloqueamos la posición si: es invencible O si es mi propio personaje en mi pantalla
+            if (player.isInvincible() || (player.slot == mySlot)) {
+                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 5)));
+                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 5)));
                 player.setSpeed(0);
-            } else {
-                // --- CORRECCIÓN AQUÍ ---
-                // 1. Identificar si hay un asesino ANTES de resetear o perder vida
-                Player killer = player.getLastHitter();
+            }
 
-                // 2. Si alguien lo empujó, le damos la Kill CADA VEZ que pierda una vida
-                if (killer != null && killer != player) {
-                    killer.addKill();
-                    Log.d("GameLogic", killer.name + " le quitó una vida a " + player.name);
-                }
-
-                // 3. Procesar la pérdida de vida
-                if (gameMode == GameMode.LIVES) {
+            // 2. LÓGICA DE MUERTE (Sólo el Maestro o en Offline)
+            if (offline || mySlot == currentHostSlot) {
+                if (!player.isInvincible()) {
                     player.loseLife();
-                    if (players.indexOf(player) == 0) vibratePhoneThrottled();
+                    player.resetPosition();
                 }
-
-                // 4. Reposicionar (esto limpia el lastHitter automáticamente en Player.java)
-                player.resetPosition();
             }
         }
     }
@@ -512,9 +671,7 @@ public class GameView extends SurfaceView implements Runnable {
         if (distance == 0f) distance = 0.001f;
 
         // Vibrar si el jugador local está involucrado
-        int idxA = players.indexOf(playerA);
-        int idxB = players.indexOf(playerB);
-        if (idxA == 0 || idxB == 0) vibratePhoneThrottled();
+        if (playerA.slot == mySlot || playerB.slot == mySlot) vibratePhoneThrottled();
 
         float pushX = dx / distance;
         float pushY = dy / distance;
@@ -524,11 +681,9 @@ public class GameView extends SurfaceView implements Runnable {
         Player faster;
 
         if (playerA.getSpeed() > playerB.getSpeed()) {
-            playerB.setLastHitter(playerA);
             affected = playerB;
             faster = playerA;
         } else if (playerB.getSpeed() > playerA.getSpeed()) {
-            playerA.setLastHitter(playerB);
             affected = playerA;
             faster = playerB;
         } else {

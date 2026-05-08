@@ -25,6 +25,8 @@ import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 import com.example.smash_ride.features.settings.SettingsActivity;
 import com.example.smash_ride.features.game.GameActivity;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,6 +39,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+
+        FirebaseAuth mAuth = FirebaseAuth.getInstance();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+
+        if (currentUser != null) {
+            // El usuario ya estaba logueado de una sesión anterior
+            prefHelper.setUserId(currentUser.getUid());
+            prefHelper.setUserName(currentUser.getDisplayName());
+        }
 
         // 1. Obtener idioma y aplicar Locale ANTES de super.onCreate
         currentLang = prefHelper.getLanguage();
@@ -201,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, GameActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         intent.putExtra(AppConstants.EXTRA_GAME_MODE, prefHelper.getGameMode());
-        intent.putExtra(AppConstants.EXTRA_OFFLINE, true);
+        intent.putExtra(AppConstants.EXTRA_OFFLINE, false);
         startActivity(intent);
     }
 
