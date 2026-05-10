@@ -57,6 +57,7 @@ public class OnlineMatchmaker {
                 if (committed && snapshot.exists()) {
                     joinRoom(snapshot.getValue(String.class), mode, userId, userName, listener, prefHelper);
                 } else {
+                    // Si hay error, cancelamos el timer de 2 min antes de avisar
                     cancelTimeout();
                     listener.onError("Error al conectar con el servidor de matchmaking.");
                 }
@@ -193,9 +194,11 @@ public class OnlineMatchmaker {
         }
     }
 
-    private void cancelTimeout() {
+    public void cancelTimeout() {
         if (timeoutRunnable != null) {
             timeoutHandler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+            Log.d("MATCH_DEBUG", "Matchmaker timeout cancelado.");
         }
     }
 }

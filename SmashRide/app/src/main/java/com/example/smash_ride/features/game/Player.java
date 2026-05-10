@@ -348,6 +348,12 @@ public class Player {
     // Método para que GameView marque si es un clon remoto
     public void setIsRemote(boolean remote) {
         this.isRemote = remote;
+        if (!remote) {
+            // Si dejo de ser remoto, limpio los objetivos de red
+            // para que p.update() use la velocidad/ángulo actuales
+            this.targetX = 0;
+            this.targetY = 0;
+        }
     }
 
     // Método para recibir la posición de red

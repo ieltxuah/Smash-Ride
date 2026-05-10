@@ -213,9 +213,9 @@ public class GameView extends SurfaceView implements Runnable {
 
         if (ended || radius <= 0 || players == null || players.isEmpty()) return;
 
-        int localIdx = (offline) ? 0 : mySlot;
-        if (localIdx < 0 || localIdx >= players.size()) return;
-        Player player1 = players.get(localIdx);
+        // --- ENCONTRAR JUGADOR LOCAL ---
+        Player player1 = getPlayerBySlot(offline ? 0 : mySlot);
+        if (player1 == null) return;
 
         // 1. GESTIÓN DE MUERTE LOCAL
         if (!offline && player1.isDestroyed() && !resultTriggered) {
@@ -223,87 +223,47 @@ public class GameView extends SurfaceView implements Runnable {
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (gameOverListener != null) gameOverListener.onGameOver();
             });
+            // IMPORTANTE: El Maestro NO pone ended=true al morir,
+            // debe seguir en el bucle para mover a los esclavos vivos.
             if (mySlot != currentHostSlot) { ended = true; return; }
         }
 
-        // 2. PROCESAR INPUT LOCAL Y BOOST
+        // 2. INPUT LOCAL (JOYSTICK)
         if (!player1.isDestroyed()) {
-            if (player1.isColliding()) {
-                // Recargar mientras se está en colisión/rebote
-                if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
-                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
-                }
-                player1.setSpeed(0f);
-            } else {
-                // Lógica de carga de Boost (Acumular mientras mantienes pulsado)
-                if (boostPointerId != -1) {
-                    if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
-                        long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
-                        chargeAvailableMs -= transfer;
-                        boostStoredMs += transfer;
-                    }
-                    boostActive = boostStoredMs > 0;
-                } else {
-                    // Al soltar se desactiva y empieza a recargar la barra general
-                    boostActive = false;
-                    boostStoredMs = 0L;
-                    if (chargeAvailableMs < FULL_CHARGE_MS) {
-                        chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
-                    }
-                }
-
-                float baseSpeed = joystick.getSpeed(player1);
-                float effectiveSpeed = baseSpeed;
-
-                // Si hay boost acumulado, aplicamos el multiplicador
-                if (boostActive && boostStoredMs > 0) {
-                    effectiveSpeed = Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER);
-                    boostStoredMs -= Math.min(delta, boostStoredMs);
-                }
-
-                player1.setSpeed(effectiveSpeed);
-                player1.setAngle(joystick.getAngle(player1));
-            }
-
-            // Enviar mi movimiento (incluyendo si el boost está activo visualmente)
+            processLocalInput(delta, player1);
             if (!offline && mySlot != currentHostSlot) {
                 syncMyMovement(player1.getAngle(), player1.getSpeed(), boostActive);
             }
         }
 
-        // 3. LÓGICA DE RED (MAESTRO vs ESCLAVO)
+        // 3. SIMULACIÓN (MAESTRO vs ESCLAVO)
         if (offline || mySlot == currentHostSlot) {
+            // --- ROL MAESTRO ---
             for (Player p : players) {
                 if (p.isDestroyed()) continue;
-                p.update();
-                checkCollision(p); // El Maestro aplica las muertes y rebotes
+                p.update(); // Física local
+                checkCollision(p);
             }
-            // Colisiones entre jugadores
+
+            // Colisiones entre jugadores (Sólo Maestro)
             for (int i = 0; i < players.size(); i++) {
                 for (int j = i + 1; j < players.size(); j++) {
                     Player a = players.get(i); Player b = players.get(j);
                     if (a.isDestroyed() || b.isDestroyed() || a.isInvincible() || b.isInvincible()) continue;
-                    if (Math.hypot(a.getXPos() - b.getXPos(), a.getYPos() - b.getYPos()) < 55f) {
+                    if (Math.hypot(a.getXPos()-b.getXPos(), a.getYPos()-b.getYPos()) < 55f) {
                         handleCollision(a, b);
                     }
                 }
             }
             if (!offline) syncMasterTruth(currentHostSlot);
             checkMatchEndConditions();
+
         } else {
-            // ESCLAVO: Actualizar posiciones de otros y bloqueo local
+            // --- ROL ESCLAVO ---
             for (Player p : players) {
-                p.setIsRemote(p.slot != mySlot);
-                p.update();
+                p.update(); // Interpolación
                 if (p.slot == mySlot && !p.isDestroyed()) {
-                    // Bloqueo visual para que el esclavo no atraviese la luna
-                    float dx = p.getXPos() - centerX;
-                    float dy = p.getYPos() - centerY;
-                    if (Math.hypot(dx, dy) >= radius) {
-                        double ang = Math.atan2(dy, dx);
-                        p.setXPos(centerX + (float)(Math.cos(ang) * (radius - 5)));
-                        p.setYPos(centerY + (float)(Math.sin(ang) * (radius - 5)));
-                    }
+                    checkCollision(p);
                 }
             }
         }
@@ -347,42 +307,39 @@ public class GameView extends SurfaceView implements Runnable {
     // Lo que envían TODOS (incluido el maestro para sus propios datos de input)
     private void syncMyMovement(float angle, float speed, boolean boost) {
         if (roomRef == null) return;
-        Map<String, Object> input = new HashMap<>();
-        input.put("angle", angle);
-        input.put("speed", speed);
-        input.put("boost", boost);
-        roomRef.child("players").child(prefHelper.getUserId()).child("input").updateChildren(input);
+        String myUid = getUserIdBySlot(mySlot);
+        if (myUid != null) {
+            Map<String, Object> input = new HashMap<>();
+            input.put("angle", angle);
+            input.put("speed", speed);
+            input.put("boost", boost);
+            roomRef.child("players").child(myUid).child("input").updateChildren(input);
+        }
     }
 
 
     // SOLO el Maestro llama a esto para todos los jugadores
     private void syncMasterTruth(int hostSlot) {
         if (roomRef == null) return;
+
         for (Player p : players) {
-            String uid = getUserIdBySlot(p.slot); // Ahora esto SI devolverá un UID
+            // Obtenemos el UID de Firebase de este jugador desde el mapa que llenamos en listenToOtherPlayers
+            String uid = slotToIdMap.get(p.slot);
+
             if (uid != null) {
                 Map<String, Object> state = new HashMap<>();
+                // Posición relativa al centro para que sea independiente de la resolución
                 state.put("relX", p.getXPos() - centerX);
                 state.put("relY", p.getYPos() - centerY);
                 state.put("angle", p.getAngle());
                 state.put("lives", p.getLives());
                 state.put("kills", p.getKills());
                 state.put("inv", p.isInvincible());
+
+                // El maestro escribe la "Verdad" en el nodo state de CADA jugador
                 roomRef.child("players").child(uid).child("state").updateChildren(state);
             }
         }
-    }
-
-    private void sendHitNotification(int targetSlot, float angleToRebound) {
-        String targetId = getUserIdBySlot(targetSlot);
-        if (targetId == null) return;
-
-        Map<String, Object> hitData = new HashMap<>();
-        hitData.put("hitAngle", angleToRebound);
-        hitData.put("hitTime", System.currentTimeMillis());
-
-        // Escribimos en un nodo especial "hit_event" dentro del jugador afectado
-        roomRef.child("players").child(targetId).child("hit_event").setValue(hitData);
     }
 
     private void draw() {
@@ -537,18 +494,6 @@ public class GameView extends SurfaceView implements Runnable {
         return slotToIdMap.get(slot);
     }
 
-    private void sendHitEvent(int targetSlot, float angle) {
-        String targetId = getUserIdBySlot(targetSlot);
-        if (targetId == null) return;
-
-        Map<String, Object> hit = new HashMap<>();
-        hit.put("angle", angle);
-        hit.put("t", System.currentTimeMillis());
-
-        // Escribimos en un nodo temporal del afectado
-        roomRef.child("players").child(targetId).child("hit_event").setValue(hit);
-    }
-
     private void listenToOtherPlayers() {
         if (roomRef == null) return;
         roomRef.child("players").addValueEventListener(new ValueEventListener() {
@@ -556,63 +501,68 @@ public class GameView extends SurfaceView implements Runnable {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) return;
 
+                int lowestSlot = 99;
+                Set<Integer> activeSlots = new HashSet<>();
+
+                // 1. RE-MAPEO TOTAL DE IDs (Crítico para que el nuevo Maestro sepa a quién escribir)
+                slotToIdMap.clear();
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    Integer s = ds.child("slot").getValue(Integer.class);
+                    if (s != null) {
+                        activeSlots.add(s);
+                        slotToIdMap.put(s, ds.getKey()); // Slot -> UID de Firebase
+                        if (s < lowestSlot) lowestSlot = s;
+                    }
+                }
+
+                // 2. DETECTAR MIGRACIÓN
+                if (currentHostSlot != lowestSlot) {
+                    Log.d("HOST_DEBUG", "MIGRACIÓN DETECTADA: " + currentHostSlot + " -> " + lowestSlot);
+                    currentHostSlot = lowestSlot;
+
+                    for (Player p : players) {
+                        if (!activeSlots.contains(p.slot)) {
+                            if (!p.isDestroyed()) p.destroy();
+                            continue;
+                        }
+
+                        if (mySlot == currentHostSlot) {
+                            // ¡SOY EL NUEVO MAESTRO!
+                            // Desactivo modo remoto para TODOS en mi pantalla.
+                            // Ahora YO calculo la física de todos los jugadores.
+                            p.setIsRemote(false);
+                            p.setColliding(false); // Desbloquea el joystick por si acaso
+                        } else {
+                            // Sigo siendo esclavo: Solo mi estrella es física local
+                            p.setIsRemote(p.slot != mySlot);
+                        }
+                    }
+                    if (mySlot == currentHostSlot) Log.d("HOST_DEBUG", "¡HE TOMADO EL MANDO FÍSICO!");
+                }
+
+                // 3. ACTUALIZACIÓN DE DATOS SEGÚN ROL
                 for (DataSnapshot ds : snapshot.getChildren()) {
                     Integer slot = ds.child("slot").getValue(Integer.class);
                     if (slot == null) continue;
-
-                    // Guardar UID para que el Maestro sepa a quién escribir
-                    slotToIdMap.put(slot, ds.getKey());
-
-                    Player p = null;
-                    for (Player pl : players) { if (pl.slot == slot) { p = pl; break; } }
+                    Player p = getPlayerBySlot(slot);
                     if (p == null) continue;
 
-                    // SI SOY YO (Esclavo): Escucho lo que el Maestro dice de mi vida y si me han golpeado
                     if (slot == mySlot && mySlot != currentHostSlot) {
-                        DataSnapshot state = ds.child("state");
-                        if (state.exists()) {
-                            p.setLives(state.child("lives").getValue(Integer.class));
-                            p.setKills(state.child("kills").getValue(Integer.class));
-                            p.setInvincibleByNetwork(state.child("inv").getValue(Boolean.class));
-                            // Posición para reconciliación
-                            Float rx = state.child("relX").getValue(Float.class);
-                            Float ry = state.child("relY").getValue(Float.class);
-                            if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
-                        }
-
-                        // REBOTE: Escuchar si el maestro nos empujó
-                        DataSnapshot hit = ds.child("hit_event");
-                        if (hit.exists()) {
-                            long t = hit.child("t").getValue(Long.class);
-                            if (t > lastProcessedHitTime) {
-                                lastProcessedHitTime = t;
-                                p.forceRebound(hit.child("angle").getValue(Float.class));
-                            }
-                        }
-                    }
-                    // SI SON LOS DEMÁS:
-                    else if (slot != mySlot) {
+                        // Soy esclavo: escucho mi estado oficial del Maestro
+                        updatePlayerFromState(p, ds.child("state"));
+                    } else if (slot != mySlot) {
                         if (mySlot == currentHostSlot) {
-                            // Maestro lee inputs de otros
+                            // Soy Maestro: leo el joystick de los esclavos para moverlos físicamente
                             DataSnapshot input = ds.child("input");
                             if (input.exists()) {
-                                p.setAngle(input.child("angle").getValue(Float.class));
-                                p.setSpeed(input.child("speed").getValue(Float.class));
+                                Float ang = input.child("angle").getValue(Float.class);
+                                Float spd = input.child("speed").getValue(Float.class);
+                                if (ang != null) p.setAngle(ang);
+                                if (spd != null) p.setSpeed(spd);
                             }
                         } else {
-                            // Esclavo lee posiciones de otros
-                            DataSnapshot state = ds.child("state");
-                            if (state.exists()) {
-                                Float rx = state.child("relX").getValue(Float.class);
-                                Float ry = state.child("relY").getValue(Float.class);
-                                Float ang = state.child("angle").getValue(Float.class);
-                                if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
-                                if (ang != null) {
-                                    p.setAngle(ang);
-                                }
-                                p.setLives(state.child("lives").getValue(Integer.class));
-                                p.setKills(state.child("kills").getValue(Integer.class));
-                            }
+                            // Soy Esclavo: leo dónde puso el Maestro a los otros jugadores
+                            updatePlayerFromState(p, ds.child("state"));
                         }
                     }
                 }
@@ -645,19 +595,6 @@ public class GameView extends SurfaceView implements Runnable {
                     player.resetPosition();
                 }
             }
-        }
-    }
-
-    private void checkPlayerCollisions(Player playerA) {
-        if (playerA == null || playerA.isDestroyed()) return;
-        for (int i = 1; i < players.size(); i++) {
-            Player playerB = players.get(i);
-            if (playerB.isDestroyed()) continue;
-            float dx = playerA.getXPos() - playerB.getXPos();
-            float dy = playerA.getYPos() - playerB.getYPos();
-            float distance = (float) Math.hypot(dx, dy);
-            float collisionDistance = 50f;
-            if (distance < collisionDistance) handleCollision(playerA, playerB);
         }
     }
 
@@ -760,28 +697,56 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    private void endMatchWithWinner(Player winner) {
-        ended = true;
-        isPlaying = false;
-
-        // Al terminar el juego, volvemos a la música de menú
-        SoundManager.getInstance().playMenuMusic(getContext());
-
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (gameOverListener != null) gameOverListener.onGameOver();
-        });
+    private Player getPlayerBySlot(int slot) {
+        for (Player p : players) {
+            if (p.slot == slot) return p;
+        }
+        return null;
     }
 
-    private void endMatchNoWinner() {
-        ended = true;
-        isPlaying = false;
+    private void updatePlayerFromState(Player p, DataSnapshot state) {
+        if (!state.exists()) return;
+        p.setLives(state.child("lives").getValue(Integer.class));
+        p.setKills(state.child("kills").getValue(Integer.class));
+        p.setInvincibleByNetwork(state.child("inv").getValue(Boolean.class));
 
-        // Al terminar el juego, volvemos a la música de menú
-        SoundManager.getInstance().playMenuMusic(getContext());
+        Float rx = state.child("relX").getValue(Float.class);
+        Float ry = state.child("relY").getValue(Float.class);
+        Float ang = state.child("angle").getValue(Float.class);
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (gameOverListener != null) gameOverListener.onGameOver();
-        });
+        if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
+        if (ang != null) p.setAngle(ang);
+    }
+
+    // Mueve la lógica de input aquí para que update() sea legible
+    private void processLocalInput(long delta, Player player1) {
+        if (player1.isColliding()) {
+            if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
+                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
+            }
+            player1.setSpeed(0f);
+        } else {
+            if (boostPointerId != -1) {
+                if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
+                    long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
+                    chargeAvailableMs -= transfer;
+                    boostStoredMs += transfer;
+                }
+                boostActive = boostStoredMs > 0;
+            } else {
+                boostActive = false;
+                boostStoredMs = 0L;
+                if (chargeAvailableMs < FULL_CHARGE_MS) {
+                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
+                }
+            }
+            float baseSpeed = joystick.getSpeed(player1);
+            float effectiveSpeed = (boostActive && boostStoredMs > 0) ?
+                    Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER) : baseSpeed;
+            if (boostActive) boostStoredMs -= Math.min(delta, boostStoredMs);
+            player1.setSpeed(effectiveSpeed);
+            player1.setAngle(joystick.getAngle(player1));
+        }
     }
 
     private void endMatchAndShowRanking() {
@@ -863,8 +828,8 @@ public class GameView extends SurfaceView implements Runnable {
         int pointerIndex = event.getActionIndex();
         int pointerId = event.getPointerId(pointerIndex);
 
-        Player player1 = (!players.isEmpty()) ? players.get(0) : null;
-        if (player1 == null || player1.isDestroyed()) return true;
+//        Player player1 = getPlayerBySlot(offline ? 0 : mySlot);
+//        if (player1 == null || player1.isDestroyed()) return true;
 
         switch (action) {
             case MotionEvent.ACTION_DOWN:

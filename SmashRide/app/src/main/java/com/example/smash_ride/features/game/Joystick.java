@@ -57,7 +57,7 @@ public class Joystick {
     }
 
     public float getSpeed(Player player) {
-        if (player.isColliding()) return 0;
+        if (player == null || player.isDestroyed()) return 0;
 
         float joystickDistanceToCenter = (float) Math.sqrt(
                 Math.pow(joystickX - controlX, 2) +

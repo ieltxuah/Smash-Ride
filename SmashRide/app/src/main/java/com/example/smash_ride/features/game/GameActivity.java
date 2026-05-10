@@ -248,6 +248,11 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         if (isFinishing() || isCancelled) return;
         if (players.size() < 4) return;
 
+        // --- LÍNEA VITAL: Detener el matchmaker y sus timers ---
+        if (matchmaker != null) {
+            matchmaker.cancelTimeout(); // Necesitas crear este método o llamar a cleanup sin borrar
+        }
+
         if (!offlineMode && mySlot == 0) {
             String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
             DatabaseReference matchRef = FirebaseManager.getInstance().getMatchmakingRef().child(modeKey);
@@ -364,7 +369,6 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
     @Override
     protected void onUserLeaveHint() {
         // Se ejecuta cuando el usuario pulsa HOME
-        super.onUserLeaveHint();
         if (!offlineMode && gameView != null && roomId != null) {
             // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
             // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
@@ -374,11 +378,11 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         }
         SoundManager.getInstance().pauseMusic();
         exitToMain();
+        super.onUserLeaveHint();
     }
 
     @Override
     protected void onPause() {
-        super.onPause();
         SoundManager.getInstance().pauseMusic();
         // Si el usuario le da a HOME, marcamos sus vidas como 0 en Firebase antes de salir
         if (!offlineMode && gameView != null && roomId != null) {
@@ -391,11 +395,11 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         if (gameView != null) {
             gameView.pause();
         }
+        super.onPause();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         isCancelled = true;
         if (!offlineMode && roomId != null) {
             // Borramos rastro
@@ -417,5 +421,6 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         if (loadingThread != null && loadingThread.isAlive()) loadingThread.interrupt();
         if (translationManager != null) translationManager.unbindActivity();
         if (handler != null) handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }
