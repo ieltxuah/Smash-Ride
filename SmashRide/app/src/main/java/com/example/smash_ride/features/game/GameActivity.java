@@ -63,6 +63,7 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefHelper = new PreferenceHelper(this);
         currentLang = prefHelper.getLanguage();
         LocaleUtils.applyAppLocale(this, currentLang);

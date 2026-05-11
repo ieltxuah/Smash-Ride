@@ -99,6 +99,7 @@ public class GameView extends SurfaceView implements Runnable {
 
     public GameView(Context context, List<Player> players, int color) {
         super(context);
+        this.setKeepScreenOn(true);
         this.prefHelper = new PreferenceHelper(context);
         this.players = players;
         this.joystick = new Joystick();
