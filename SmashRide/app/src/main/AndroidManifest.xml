@@ -18,6 +18,9 @@
         android:theme="@style/Theme.SmashRide"
         tools:ignore="LockedOrientationActivity">
         <activity
+            android:name=".features.auth.AuthActivity"
+            android:exported="false" />
+        <activity
             android:name=".features.settings.SettingsActivity"
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize"

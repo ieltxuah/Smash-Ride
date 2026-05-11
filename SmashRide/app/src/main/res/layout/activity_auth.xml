@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#121212">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:gravity="center_horizontal">
+
+        <!-- Botones para alternar entre Login y Registro -->
+        <RadioGroup
+            android:id="@+id/auth_mode_radio_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="28dp"
+            android:gravity="center">
+
+            <RadioButton
+                android:id="@+id/auth_login_radio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Login"
+                android:checked="true"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="16dp" />
+
+            <RadioButton
+                android:id="@+id/auth_register_radio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Register"
+                android:textColor="#FFFFFF" />
+
+        </RadioGroup>
+
+        <!-- Campo de correo electronico -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Email"
+            android:textSize="14sp"
+            android:textColor="#FFD700"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/auth_email_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textEmailAddress"
+            android:imeOptions="actionNext"
+            android:singleLine="true"
+            android:hint="Email"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:background="#1E1E1E"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Campo de contrasena -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Password"
+            android:textSize="14sp"
+            android:textColor="#FFD700"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/auth_password_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword"
+            android:imeOptions="actionNext"
+            android:singleLine="true"
+            android:hint="Password"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:background="#1E1E1E"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Campo para confirmar contrasena (solo en modo Registro) -->
+        <LinearLayout
+            android:id="@+id/auth_confirm_password_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Confirm Password"
+                android:textSize="14sp"
+                android:textColor="#FFD700"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/auth_confirm_password_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:imeOptions="actionDone"
+                android:singleLine="true"
+                android:hint="Confirm Password"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:background="#1E1E1E"
+                android:padding="12dp"
+                android:layout_marginBottom="20dp" />
+
+        </LinearLayout>
+
+        <!-- Campo de nombre de usuario (solo en modo Registro) -->
+        <LinearLayout
+            android:id="@+id/auth_username_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Username"
+                android:textSize="14sp"
+                android:textColor="#FFD700"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/auth_username_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:imeOptions="actionNext"
+                android:singleLine="true"
+                android:hint="Username"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:background="#1E1E1E"
+                android:padding="12dp"
+                android:layout_marginBottom="20dp" />
+
+        </LinearLayout>
+
+        <!-- Texto para mostrar errores -->
+        <TextView
+            android:id="@+id/auth_error_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:textColor="#FF5252"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:visibility="gone" />
+
+        <!-- Boton principal para enviar el formulario -->
+        <Button
+            android:id="@+id/auth_submit_button"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:text="Login"
+            android:textSize="20sp"
+            android:backgroundTint="#4CAF50"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Indicador de carga mientras se procesa la peticion -->
+        <ProgressBar
+            android:id="@+id/auth_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone" />
+
+        <!-- Enlace para recuperar contrasena (solo en modo Login) -->
+        <TextView
+            android:id="@+id/auth_forgot_password"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Forgot password?"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
+</ScrollView>

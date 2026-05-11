@@ -36,7 +36,10 @@
                     android:fontFamily="@font/kirby_classic"
                     android:textSize="26sp"
                     android:letterSpacing="0.05"
-                    android:textColor="#FFFFFF"/>
+                    android:textColor="#FFFFFF"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
 
                 <TextView
                     android:id="@+id/auth_status_label"

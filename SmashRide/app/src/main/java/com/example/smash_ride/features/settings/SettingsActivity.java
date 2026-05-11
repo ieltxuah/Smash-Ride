@@ -23,13 +23,8 @@ import androidx.recyclerview.widget.LinearSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.smash_ride.R;
-import android.content.Intent;
-import androidx.annotation.NonNull;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.auth.AuthResult;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
@@ -44,6 +39,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     private TranslationManager translationManager;
     private PreferenceHelper prefHelper;
+
+    private FirebaseAuth mAuth;
 
     private Spinner langSpinner;
     private SeekBar musicSeekBar;
@@ -71,17 +68,20 @@ public class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        // 2. Inicializar Manager y vincular actividad
+        // 2. Inicializar Firebase Auth
+        mAuth = FirebaseAuth.getInstance();
+
+        // 3. Inicializar Manager y vincular actividad
         translationManager = TranslationManager.getInstance();
         translationManager.bindActivity(this);
 
-        // 3. Inicializar vistas y cargar datos (Música y Volumen incluidos)
+        // 4. Inicializar vistas y cargar datos (Música y Volumen incluidos)
         initViews();
         loadSettings();
         setupUserSection();
         setupColorCarousel();
 
-        // 4. EJECUTAR TRADUCCIÓN (Asegurando que los títulos con ID se registren)
+        // 5. EJECUTAR TRADUCCIÓN (Asegurando que los títulos con ID se registren)
         initTranslation();
     }
 
@@ -110,21 +110,6 @@ public class SettingsActivity extends AppCompatActivity {
         saveButton.setOnClickListener(v -> saveAndExit());
         deleteDataButton.setOnClickListener(v -> showDeleteConfirmation());
 
-        private void showDeleteConfirmation() {
-            new AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.delete_all_data))
-                    .setMessage("¿Estás seguro de borrar todo el progreso?")
-                    .setPositiveButton("BORRAR", (dialog, which) -> {
-                        prefHelper.setMusicVolume(2);
-                        prefHelper.setEffectsVolume(2);
-                        SoundManager.getInstance().updateVolume(this);
-                        Toast.makeText(this, "Datos borrados", Toast.LENGTH_SHORT).show();
-                        loadSettings();
-                    })
-                    .setNegativeButton("CANCELAR", null)
-                    .show();
-        }
-
         setupSeekBarListeners();
     }
 
@@ -149,26 +134,13 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    private FirebaseAuth mAuth;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_settings);
-
-        // Initialize Firebase Auth
-        mAuth = FirebaseAuth.getInstance();
-
-        // Setup views and load settings...
-    }
-
     private void setupUserSection() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         boolean isLoggedIn = (currentUser != null);
 
         if (isLoggedIn) {
-            if(authStatusLabel != null) authStatusLabel.setText(R.string.status_connected);
-            if(loginLogoutButton != null) {
+            if (authStatusLabel != null) authStatusLabel.setText(R.string.status_connected);
+            if (loginLogoutButton != null) {
                 loginLogoutButton.setText(R.string.logout_action);
                 // Cambiamos el color a ROJO para Logout
                 loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#FF5252"));
@@ -177,13 +149,13 @@ public class SettingsActivity extends AppCompatActivity {
                             .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
                 }
             }
-            if(userNameText != null) userNameText.setText(currentUser.getEmail());
+            if (userNameText != null) userNameText.setText(getDisplayUsername(currentUser));
 
             // Si está logueado, mostramos el botón de borrar datos
-            if(deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
+            if (deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
         } else {
-            if(authStatusLabel != null) authStatusLabel.setText(R.string.status_disconnected);
-            if(loginLogoutButton != null) {
+            if (authStatusLabel != null) authStatusLabel.setText(R.string.status_disconnected);
+            if (loginLogoutButton != null) {
                 loginLogoutButton.setText(R.string.login_action);
                 // Restauramos el color VERDE para Iniciar Sesión
                 loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
@@ -192,11 +164,25 @@ public class SettingsActivity extends AppCompatActivity {
                             .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
                 }
             }
-            if(userNameText != null) userNameText.setText("STAR_USER");
-
             // UX: Si no está logueado, ocultamos el botón de borrar para evitar accidentes o por privacidad
-            if(deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
+            if (deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
         }
+
+        loginLogoutButton.setOnClickListener(v -> {
+            if (mAuth.getCurrentUser() != null) {
+                logout();
+            } else {
+                startActivity(new Intent(this, com.example.smash_ride.features.auth.AuthActivity.class));
+            }
+        });
+    }
+
+    // Devuelve username si existe, si no usa email
+    private String getDisplayUsername(FirebaseUser user) {
+        String name = user.getDisplayName();
+        if (name != null && !name.isEmpty()) return name;
+        String email = user.getEmail();
+        return (email != null) ? email.split("@")[0] : "STAR_USER";
     }
 
     private void setupSeekBarListeners() {
@@ -240,25 +226,6 @@ public class SettingsActivity extends AppCompatActivity {
         finish();
     }
 
-    private void login() {
-        String email = "user@example.com"; // Replace with actual email input
-        String password = "password123"; // Replace with actual password input
-
-        mAuth.signInWithEmailAndPassword(email, password)
-            .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
-                @Override
-                public void onComplete(@NonNull Task<AuthResult> task) {
-                    if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        updateUI(user);
-                    } else {
-                        Toast.makeText(SettingsActivity.this, "Authentication failed.",
-                                Toast.LENGTH_SHORT).show();
-                    }
-                }
-            });
-    }
-
     private void logout() {
         mAuth.signOut();
         updateUI(null);
@@ -266,13 +233,14 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void updateUI(FirebaseUser user) {
         if (user != null) {
-            userNameText.setText(user.getEmail());
+            userNameText.setText(getDisplayUsername(user));
             loginLogoutButton.setText(R.string.logout_action);
             loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#FF5252"));
             if (loginLogoutButton instanceof com.google.android.material.button.MaterialButton) {
                 ((com.google.android.material.button.MaterialButton) loginLogoutButton)
                         .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
             }
+            if (deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
         } else {
             userNameText.setText("STAR_USER");
             loginLogoutButton.setText(R.string.login_action);
@@ -281,6 +249,7 @@ public class SettingsActivity extends AppCompatActivity {
                 ((com.google.android.material.button.MaterialButton) loginLogoutButton)
                         .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
             }
+            if (deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
         }
     }
 
