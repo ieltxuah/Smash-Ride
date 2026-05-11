@@ -196,7 +196,7 @@
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:text="@string/delete_all_data"
+            android:text="@string/delete_data"
             android:fontFamily="@font/kirby_classic"
             android:textColor="#FF5252"
             android:textSize="14sp"

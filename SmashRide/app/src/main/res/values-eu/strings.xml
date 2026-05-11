@@ -16,7 +16,7 @@
     <string name="status_disconnected">Egoera: Deskonektatuta</string>
     <string name="login_action">SAIOA HASI</string>
     <string name="logout_action">SAIOA ITXI</string>
-    <string name="delete_all_data">DATU GUZTIAK EZABATU</string>
+    <string name="delete_data">DATUAK EZABATU</string>
     <string name="save">Aldaketak Gorde</string>
     <string name="mode_selector_desc">Modu aukeratzailea</string>
     <string name="loading_players">Jokalariak kargatzen...</string>

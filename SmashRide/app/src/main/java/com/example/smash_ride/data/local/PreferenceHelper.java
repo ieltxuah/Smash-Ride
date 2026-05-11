@@ -51,4 +51,13 @@ public class PreferenceHelper {
     public void setGameMode(String mode) {
         prefs.edit().putString(AppConstants.KEY_GAME_MODE, mode).apply();
     }
+
+    public void resetToDefaults() {
+        prefs.edit()
+                .putInt(AppConstants.KEY_MUSIC_VOLUME, 2)
+                .putInt(AppConstants.KEY_EFFECTS_VOLUME, 2)
+                .putString(AppConstants.KEY_CHARACTER_COLOR, "dorado")
+                .putString(AppConstants.KEY_LANG, "es")
+                .apply();
+    }
 }

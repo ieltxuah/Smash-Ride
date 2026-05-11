@@ -50,9 +50,7 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView userNameText;
     private TextView authStatusLabel;
     private Button loginLogoutButton;
-    private Button deleteDataButton;
 
-    private String[] labels;
     private String[] codes;
     private String selectedColorTag = "dorado";
     private String currentLang;
@@ -94,12 +92,12 @@ public class SettingsActivity extends AppCompatActivity {
         userNameText = findViewById(R.id.user_name_text);
         authStatusLabel = findViewById(R.id.auth_status_label);
         loginLogoutButton = findViewById(R.id.login_logout_button);
-        deleteDataButton = findViewById(R.id.delete_data_button);
+        Button deleteDataButton = findViewById(R.id.delete_data_button);
 
         musicSeekBar.setMax(4);
         effectsSeekBar.setMax(4);
 
-        labels = getResources().getStringArray(R.array.supported_lang_labels);
+        String[] labels = getResources().getStringArray(R.array.supported_lang_labels);
         codes = getResources().getStringArray(R.array.supported_lang_codes);
 
         ArrayList<String> langList = new ArrayList<>(Arrays.asList(labels));
@@ -109,6 +107,8 @@ public class SettingsActivity extends AppCompatActivity {
 
         saveButton.setOnClickListener(v -> saveAndExit());
         deleteDataButton.setOnClickListener(v -> showDeleteConfirmation());
+        deleteDataButton = findViewById(R.id.delete_data_button);
+        deleteDataButton.setVisibility(View.VISIBLE);
 
         setupSeekBarListeners();
     }
@@ -150,9 +150,6 @@ public class SettingsActivity extends AppCompatActivity {
                 }
             }
             if (userNameText != null) userNameText.setText(getDisplayUsername(currentUser));
-
-            // Si está logueado, mostramos el botón de borrar datos
-            if (deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
         } else {
             if (authStatusLabel != null) authStatusLabel.setText(R.string.status_disconnected);
             if (loginLogoutButton != null) {
@@ -164,8 +161,6 @@ public class SettingsActivity extends AppCompatActivity {
                             .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
                 }
             }
-            // UX: Si no está logueado, ocultamos el botón de borrar para evitar accidentes o por privacidad
-            if (deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
         }
 
         loginLogoutButton.setOnClickListener(v -> {
@@ -240,7 +235,6 @@ public class SettingsActivity extends AppCompatActivity {
                 ((com.google.android.material.button.MaterialButton) loginLogoutButton)
                         .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
             }
-            if (deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
         } else {
             userNameText.setText("STAR_USER");
             loginLogoutButton.setText(R.string.login_action);
@@ -249,7 +243,6 @@ public class SettingsActivity extends AppCompatActivity {
                 ((com.google.android.material.button.MaterialButton) loginLogoutButton)
                         .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
             }
-            if (deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
         }
     }
 
@@ -282,6 +275,7 @@ public class SettingsActivity extends AppCompatActivity {
         carouselRv.setLayoutManager(lm);
         carouselRv.setAdapter(new ColorAdapter(AppConstants.CAROUSEL_COLORS, AppConstants.CAROUSEL_HEX));
 
+        carouselRv.setOnFlingListener(null);
         LinearSnapHelper snapHelper = new LinearSnapHelper();
         snapHelper.attachToRecyclerView(carouselRv);
 
@@ -308,6 +302,7 @@ public class SettingsActivity extends AppCompatActivity {
             });
         });
 
+        carouselRv.clearOnScrollListeners();
         carouselRv.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 View centerView = snapHelper.findSnapView(lm);
@@ -322,18 +317,73 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDeleteConfirmation() {
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.delete_all_data))
-                .setMessage("¿Estás seguro de borrar todo el progreso?")
-                .setPositiveButton("BORRAR", (dialog, which) -> {
-                    prefHelper.setMusicVolume(2);
-                    prefHelper.setEffectsVolume(2);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.delete_data))
+                .setMessage("¿Qué quieres borrar?")
+                .setPositiveButton("CONFIGURACIÓN", (dialog, which) -> {
+                    prefHelper.resetToDefaults();
+                    selectedColorTag = "dorado";
+                    currentLang = "es";
+                    musicSeekBar.setProgress(2);
+                    effectsSeekBar.setProgress(2);
                     SoundManager.getInstance().updateVolume(this);
-                    Toast.makeText(this, "Datos borrados", Toast.LENGTH_SHORT).show();
-                    loadSettings();
+                    setupColorCarousel();
+                    Toast.makeText(this, "Configuración restablecida", Toast.LENGTH_SHORT).show();
                 })
+            .setNeutralButton("CANCELAR", null);
+
+        if (mAuth.getCurrentUser() != null) {
+            builder.setNegativeButton("CUENTA", (dialog, which) -> showReauthDialog());
+        }
+
+        builder.show();
+    }
+
+    private void showReauthDialog() {
+        android.widget.EditText passwordInput = new android.widget.EditText(this);
+        passwordInput.setHint("Contraseña");
+        passwordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Confirma tu contraseña")
+                .setView(passwordInput)
+                .setPositiveButton("CONFIRMAR", null)
                 .setNegativeButton("CANCELAR", null)
-                .show();
+                .create();
+
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String password = passwordInput.getText().toString().trim();
+            if (password.isEmpty()) {
+                Toast.makeText(this, "Introduce tu contraseña", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            FirebaseUser user = mAuth.getCurrentUser();
+            if (user == null || user.getEmail() == null) return;
+
+            com.google.firebase.auth.AuthCredential credential =
+                    com.google.firebase.auth.EmailAuthProvider.getCredential(user.getEmail(), password);
+
+            user.reauthenticate(credential).addOnCompleteListener(reauthTask -> {
+                if (!reauthTask.isSuccessful()) {
+                    Toast.makeText(this, "Contraseña incorrecta", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                user.delete().addOnCompleteListener(deleteTask -> {
+                    if (deleteTask.isSuccessful()) {
+                        dialog.dismiss();
+                        Toast.makeText(this, "Cuenta eliminada", Toast.LENGTH_SHORT).show();
+                        updateUI(null);
+                    } else {
+                        Exception e = deleteTask.getException();
+                        String msg = (e != null && e.getMessage() != null) ? e.getMessage() : "Error desconocido";
+                        Toast.makeText(this, "Error al borrar cuenta: " + msg, Toast.LENGTH_LONG).show();
+                    }
+                });
+            });
+        }));
+
+        dialog.show();
     }
 
     @Override protected void onResume() {
