@@ -110,6 +110,7 @@ public class GameView extends SurfaceView implements Runnable {
         }
         loadBackgrounds(context); // Cargar recursos de fondo
         initHudTranslations();
+        SoundManager.getInstance().loadGameSounds(context); // Cargar el sonido de choque
         initialize();
     }
 
@@ -213,19 +214,41 @@ public class GameView extends SurfaceView implements Runnable {
 
         if (ended || radius <= 0 || players == null || players.isEmpty()) return;
 
+        // --- AÑADE ESTO AQUÍ: Actualizar el cronómetro ---
+        if (gameMode == GameMode.TIMER && !offline && mySlot == currentHostSlot) {
+            timerMs -= delta;
+            if (timerMs < 0) timerMs = 0;
+            // El maestro sincroniza el tiempo para todos en Firebase
+            roomRef.child("status").child("timer").setValue(timerMs);
+        } else if (gameMode == GameMode.TIMER && offline) {
+            // En modo offline el tiempo baja localmente
+            timerMs -= delta;
+            if (timerMs < 0) timerMs = 0;
+        }
+        // ------------------------------------------------
+
         // --- ENCONTRAR JUGADOR LOCAL ---
         Player player1 = getPlayerBySlot(offline ? 0 : mySlot);
         if (player1 == null) return;
 
         // 1. GESTIÓN DE MUERTE LOCAL
         if (!offline && player1.isDestroyed() && !resultTriggered) {
-            resultTriggered = true;
-            new Handler(Looper.getMainLooper()).post(() -> {
-                if (gameOverListener != null) gameOverListener.onGameOver();
-            });
-            // IMPORTANTE: El Maestro NO pone ended=true al morir,
-            // debe seguir en el bucle para mover a los esclavos vivos.
-            if (mySlot != currentHostSlot) { ended = true; return; }
+            // Solo disparamos el GameOver si NO es modo TIMER
+            if (gameMode != GameMode.TIMER) {
+                resultTriggered = true;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (gameOverListener != null) gameOverListener.onGameOver();
+                });
+
+                if (mySlot != currentHostSlot) {
+                    ended = true;
+                    return;
+                }
+            } else {
+                // En modo TIMER, si muero, simplemente reseteo mi posición localmente
+                // El Maestro se encargará de sincronizar esto a través de syncMasterTruth
+                player1.resetPosition();
+            }
         }
 
         // 2. INPUT LOCAL (JOYSTICK)
@@ -270,10 +293,7 @@ public class GameView extends SurfaceView implements Runnable {
     }
 
     private void checkMatchEndConditions() {
-        if (ended) return;
-
-        // Caso A: Modo Vidas (Solo queda uno vivo)
-        int aliveCount = 0;
+        if (ended) return;    int aliveCount = 0;
         Player winner = null;
 
         for (Player p : players) {
@@ -283,13 +303,14 @@ public class GameView extends SurfaceView implements Runnable {
             }
         }
 
-        if (gameMode == GameMode.LIVES && aliveCount == 1) {
-            // Avisamos a Firebase que el juego terminó oficialmente
-            roomRef.child("winner_slot").setValue(winner.slot);
-        }
-
+        // --- CORRECCIÓN AQUÍ ---
         // En modo VIDAS, la partida acaba si queda 1 o 0 vivos
         if (gameMode == GameMode.LIVES) {
+            if (aliveCount == 1 && winner != null) {
+                // Avisamos a Firebase del ganador
+                roomRef.child("winner_slot").setValue(winner.slot);
+            }
+
             if (aliveCount <= 1) {
                 ended = true;
                 new Handler(Looper.getMainLooper()).post(() -> {
@@ -297,7 +318,7 @@ public class GameView extends SurfaceView implements Runnable {
                 });
             }
         }
-        // Caso B: Modo Tiempo (El tiempo llegó a 0)
+        // En modo TIEMPO, la partida SOLO acaba cuando el tiempo llega a 0
         else if (gameMode == GameMode.TIMER && timerMs <= 0) {
             ended = true;
             new Handler(Looper.getMainLooper()).post(this::endMatchAndShowRanking);
@@ -487,6 +508,16 @@ public class GameView extends SurfaceView implements Runnable {
         this.roomId = roomId;
         this.mySlot = mySlot;
         this.roomRef = FirebaseDatabase.getInstance().getReference("rooms").child(roomId);
+        roomRef.child("status").child("timer").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists() && mySlot != currentHostSlot) {
+                    Long serverTime = snapshot.getValue(Long.class);
+                    if (serverTime != null) timerMs = serverTime;
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
         listenToOtherPlayers();
     }
 
@@ -591,8 +622,11 @@ public class GameView extends SurfaceView implements Runnable {
             // 2. LÓGICA DE MUERTE (Sólo el Maestro o en Offline)
             if (offline || mySlot == currentHostSlot) {
                 if (!player.isInvincible()) {
-                    player.loseLife();
+                    if (gameMode == GameMode.LIVES) {
+                        player.loseLife();
+                    }
                     player.resetPosition();
+                    vibratePhoneThrottled();
                 }
             }
         }
@@ -704,17 +738,43 @@ public class GameView extends SurfaceView implements Runnable {
         return null;
     }
 
+    // En app/src/main/java/com/example/smash_ride/features/game/GameView.java
+
     private void updatePlayerFromState(Player p, DataSnapshot state) {
         if (!state.exists()) return;
-        p.setLives(state.child("lives").getValue(Integer.class));
-        p.setKills(state.child("kills").getValue(Integer.class));
-        p.setInvincibleByNetwork(state.child("inv").getValue(Boolean.class));
 
+        // Actualizar vidas y kills
+        Integer lv = state.child("lives").getValue(Integer.class);
+        if (lv != null) p.setLives(lv);
+
+        Integer kl = state.child("kills").getValue(Integer.class);
+        if (kl != null) p.setKills(kl);
+
+        Boolean inv = state.child("inv").getValue(Boolean.class);
+        if (inv != null) p.setInvincibleByNetwork(inv);
+
+        // Posición
         Float rx = state.child("relX").getValue(Float.class);
         Float ry = state.child("relY").getValue(Float.class);
         Float ang = state.child("angle").getValue(Float.class);
 
-        if (rx != null && ry != null) p.setRemoteTarget(centerX + rx, centerY + ry);
+        if (rx != null && ry != null) {
+            float newTargetX = centerX + rx;
+            float newTargetY = centerY + ry;
+
+            // --- SOLUCIÓN AL TELETRANSPORTE ---
+            // Calculamos la distancia entre donde está el dibujo y donde dice el maestro que debe estar
+            float distance = (float) Math.hypot(newTargetX - p.getXPos(), newTargetY - p.getYPos());
+
+            if (distance > 150f) {
+                // Si la distancia es mayor a 150px, es un respawn. Teletransportamos.
+                p.snapToPosition(newTargetX, newTargetY);
+            } else {
+                // Si es un movimiento corto, seguimos usando interpolación suave
+                p.setRemoteTarget(newTargetX, newTargetY);
+            }
+        }
+
         if (ang != null) p.setAngle(ang);
     }
 
@@ -766,6 +826,8 @@ public class GameView extends SurfaceView implements Runnable {
         if (now - lastVibrationTimeMs < VIBRATION_THROTTLE_MS) return;
         lastVibrationTimeMs = now;
         vibratePhone();
+
+        SoundManager.getInstance().playCollisionSound();
     }
 
     private void vibratePhone() {

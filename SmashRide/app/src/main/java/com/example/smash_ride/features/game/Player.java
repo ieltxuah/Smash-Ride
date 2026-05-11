@@ -183,13 +183,6 @@ public class Player {
         }
     }
 
-    public void forceRebound(float angle) {
-        this.collisionAngle = angle;
-        this.isColliding = true;
-        this.speed = 18f; // Velocidad de impacto
-        this.setInvincible(500); // Pequeña protección post-choque
-    }
-
     public void setInvincible(long durationMs) {
         this.isInvincible = true;
         this.invincibilityEndTime = System.currentTimeMillis() + durationMs;
@@ -267,6 +260,20 @@ public class Player {
         setInvincible(2000);
     }
 
+
+    /**
+     * Fuerza la posición del jugador ignorando la interpolación de red.
+     * Útil para respawns o teletransportes.
+     */
+    public void snapToPosition(float x, float y) {
+        this.xPos = x;
+        this.yPos = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.isColliding = false;
+        this.speed = 0;
+    }
+
     public float getXPos() {
         return xPos;
     }
@@ -311,6 +318,10 @@ public class Player {
     public void setLives(int l) {
         lives = l;
         if (l <= 0) markDestroyed();
+    }
+
+    public int getColor() {
+        return paint.getColor();
     }
 
     public void loseLife() {

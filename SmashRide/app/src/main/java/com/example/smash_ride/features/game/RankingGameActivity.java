@@ -65,34 +65,48 @@ public class RankingGameActivity extends AppCompatActivity {
         // 4. Lógica de Ranking
         ArrayList<String> names = getIntent().getStringArrayListExtra("NAMES");
         ArrayList<Integer> kills = getIntent().getIntegerArrayListExtra("KILLS");
+        ArrayList<Integer> colors = getIntent().getIntegerArrayListExtra("COLORS"); // Recibimos los colores
 
-        ArrayList<String> displayList = new ArrayList<>();
-        if (names != null && kills != null && names.size() == kills.size()) {
-            ArrayList<Integer> indices = new ArrayList<>();
-            for (int i = 0; i < names.size(); i++) indices.add(i);
+        ArrayList<RankingEntry> rankingData = new ArrayList<>();
+
+        if (names != null && kills != null && colors != null) {
+            for (int i = 0; i < names.size(); i++) {
+                rankingData.add(new RankingEntry(names.get(i), kills.get(i), colors.get(i)));
+            }
 
             // Ordenar por Kills de mayor a menor
-            Collections.sort(indices, (i1, i2) -> kills.get(i2).compareTo(kills.get(i1)));
-
-            for (int i = 0; i < indices.size(); i++) {
-                int originalIdx = indices.get(i);
-                displayList.add((i + 1) + ". " + names.get(originalIdx) + " - " + kills.get(originalIdx) + " Kills");
-            }
+            Collections.sort(rankingData, (r1, r2) -> Integer.compare(r2.kills, r1.kills));
         }
 
         ListView lv = findViewById(R.id.ranking_list);
 
-        // Usamos un Adapter personalizado para aplicar la fuente y el color blanco
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, displayList) {
+// Adaptador personalizado con mejor diseño y traducción
+        ArrayAdapter<RankingEntry> adapter = new ArrayAdapter<RankingEntry>(this, R.layout.item_ranking, rankingData) {
             @NonNull
             @Override
             public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
-                TextView tv = (TextView) super.getView(position, convertView, parent);
-                tv.setTextColor(Color.WHITE);
-                tv.setTypeface(kirbyFont);
-                tv.setTextSize(18f);
-                tv.setShadowLayer(4f, 2f, 2f, Color.BLACK);
-                return tv;
+                if (convertView == null) {
+                    convertView = getLayoutInflater().inflate(R.layout.item_ranking, parent, false);
+                }
+
+                RankingEntry entry = getItem(position);
+                TextView tvPos = convertView.findViewById(R.id.rank_pos);
+                TextView tvName = convertView.findViewById(R.id.rank_name);
+                TextView tvKills = convertView.findViewById(R.id.rank_kills);
+
+                if (entry != null) {
+                    tvPos.setText(String.valueOf(position + 1));
+                    tvName.setText(entry.name);
+
+                    // SOLUCIÓN TRADUCCIÓN: Usamos el recurso dinámico %d
+                    tvKills.setText(getString(R.string.hud_kills, entry.kills));
+
+                    // APLICAMOS EL COLOR DEL PERSONAJE AL NOMBRE
+                    tvName.setTextColor(entry.color);
+                    tvName.setShadowLayer(4f, 2f, 2f, Color.BLACK);
+                }
+
+                return convertView;
             }
         };
 
@@ -142,5 +156,17 @@ public class RankingGameActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (translationManager != null) translationManager.unbindActivity();
+    }
+
+    private static class RankingEntry {
+        String name;
+        int kills;
+        int color;
+
+        RankingEntry(String name, int kills, int color) {
+            this.name = name;
+            this.kills = kills;
+            this.color = color;
+        }
     }
 }

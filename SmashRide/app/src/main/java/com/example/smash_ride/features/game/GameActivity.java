@@ -272,7 +272,8 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
         }
 
         loadingLayout.setVisibility(View.GONE);
-        gameView = new GameView(this, players, color);
+        int myColorHex = getColorHexByTag(prefHelper.getCharacterColor());
+        gameView = new GameView(this, players, myColorHex);
         gameView.setGameOverListener(this);
         gameView.setGameMode(selectedMode);
         gameView.setOffline(offlineMode);
@@ -348,12 +349,18 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
             Intent i = new Intent(this, RankingGameActivity.class);
             ArrayList<String> names = new ArrayList<>();
             ArrayList<Integer> kills = new ArrayList<>();
+            ArrayList<Integer> colorsList = new ArrayList<>(); // Nueva lista para colores
+
             for (Player p : players) {
                 names.add(p.name);
                 kills.add(p.getKills());
+                // Necesitamos el color de la pintura que se usó para la estrella
+                colorsList.add(p.getColor());
             }
+
             i.putStringArrayListExtra("NAMES", names);
             i.putIntegerArrayListExtra("KILLS", kills);
+            i.putIntegerArrayListExtra("COLORS", colorsList); // Pasamos los colores
             startActivity(i);
         }
         finish();
@@ -396,6 +403,27 @@ public class GameActivity extends AppCompatActivity implements GameOverListener 
             gameView.pause();
         }
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        SoundManager.getInstance().pauseMusic();
+        // Si el usuario le da a HOME, marcamos sus vidas como 0 en Firebase antes de salir
+        if (!offlineMode && gameView != null && roomId != null) {
+            // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
+            // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
+            FirebaseManager.getInstance().getRoomsRef()
+                    .child(roomId).child("players")
+                    .child(prefHelper.getUserId()).removeValue();
+        }
+        if (gameView != null) {
+            gameView.pause();
+        }
+        // Si el juego está en marcha y no ha terminado por victoria/derrota
+        if (isGameRunning) {
+            exitToMain();
+        }
+        super.onStop();
     }
 
     @Override
