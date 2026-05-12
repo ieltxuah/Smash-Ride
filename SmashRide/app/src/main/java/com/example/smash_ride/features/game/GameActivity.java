@@ -21,6 +21,7 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.network.FirebaseManager;
+import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.game.online.OnlineMatchmaker;
 import com.example.smash_ride.translation.LocaleUtils;
@@ -35,7 +36,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-public class GameActivity extends AppCompatActivity implements GameOverListener {
+public class GameActivity extends BaseActivity implements GameOverListener {
 
     private GameView gameView;
     private List<Player> players;

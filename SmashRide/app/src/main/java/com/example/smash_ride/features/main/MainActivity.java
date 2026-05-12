@@ -19,6 +19,7 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.graphics.SpriteColorizer;
+import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.notifications.NotificationScheduler;
 import com.example.smash_ride.translation.LocaleUtils;
@@ -28,7 +29,7 @@ import com.example.smash_ride.features.game.GameActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
 
     private static final String TAG = "DEBUG_TRANSLATION";
     private TranslationManager translationManager;

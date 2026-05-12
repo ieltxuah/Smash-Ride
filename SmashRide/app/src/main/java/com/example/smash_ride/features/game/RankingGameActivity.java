@@ -19,6 +19,7 @@ import androidx.core.content.res.ResourcesCompat;
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
+import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
@@ -28,7 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 
-public class RankingGameActivity extends AppCompatActivity {
+public class RankingGameActivity extends BaseActivity {
 
     private TranslationManager translationManager;
     private String currentLang;
