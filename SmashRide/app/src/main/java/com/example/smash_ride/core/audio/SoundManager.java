@@ -1,7 +1,9 @@
 package com.example.smash_ride.core.audio;
 
 import android.content.Context;
+import android.media.AudioAttributes;
 import android.media.MediaPlayer;
+import android.media.SoundPool;
 import android.util.Log;
 import com.example.smash_ride.R;
 import com.example.smash_ride.data.local.PreferenceHelper;
@@ -13,7 +15,21 @@ public class SoundManager {
     private int currentResource = -1;
     private boolean isPausedBySystem = false;
 
-    private SoundManager() {}
+    private SoundPool soundPool;
+    private int collisionSoundId;
+    private float effectsVolume = 1.0f;
+
+    private SoundManager() {
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+
+        soundPool = new SoundPool.Builder()
+                .setMaxStreams(5) // Hasta 5 sonidos a la vez
+                .setAudioAttributes(attrs)
+                .build();
+    }
 
     public static synchronized SoundManager getInstance() {
         if (instance == null) instance = new SoundManager();
@@ -62,11 +78,28 @@ public class SoundManager {
         }
     }
 
+    public void loadGameSounds(Context context) {
+        // Asegúrate de tener un archivo llamado 'collision.mp3' o 'collision.wav' en res/raw
+        collisionSoundId = soundPool.load(context.getApplicationContext(), R.raw.collision, 1);
+        updateVolume(context);
+    }
+
+    public void playCollisionSound() {
+        if (collisionSoundId != 0) {
+            // Reproducir con el volumen de efectos guardado
+            soundPool.play(collisionSoundId, effectsVolume, effectsVolume, 1, 0, 1.0f);
+        }
+    }
+
     public void updateVolume(Context context) {
-        if (bgmPlayer == null) return;
         PreferenceHelper pref = new PreferenceHelper(context);
-        float vol = pref.getMusicVolume() * 0.25f;
-        bgmPlayer.setVolume(vol, vol);
+
+        // Volumen Música
+        float musicVol = pref.getMusicVolume() * 0.25f;
+        if (bgmPlayer != null) bgmPlayer.setVolume(musicVol, musicVol);
+
+        // Volumen Efectos (Nuevo)
+        this.effectsVolume = pref.getEffectsVolume() * 0.25f;
     }
 
     public void stopMusic() {

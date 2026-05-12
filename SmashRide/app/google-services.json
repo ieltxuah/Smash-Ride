@@ -1,26 +1,37 @@
 {
   "project_info": {
-    "project_number": "107469024937",
-    "project_id": "kirby-smash-ride",
-    "storage_bucket": "kirby-smash-ride.firebasestorage.app"
+    "project_number": "294624095366",
+    "firebase_url": "https://smash-ride-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "smash-ride",
+    "storage_bucket": "smash-ride.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:107469024937:android:0e8a67d09dd3436ef183b8",
+        "mobilesdk_app_id": "1:294624095366:android:728ff9ce254d2028a1b507",
         "android_client_info": {
           "package_name": "com.example.smash_ride"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "294624095366-fhu5nfa37kaqlbaa64qv9pudu1b9q7af.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCABwnsSByRJj-HvcNKYSpnf1iKpdICZ80"
+          "current_key": "AIzaSyB9mpSFf7LsdOVMkyRzgqeYkbPqNkyG-X8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "294624095366-fhu5nfa37kaqlbaa64qv9pudu1b9q7af.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -36,8 +36,14 @@ public class Player {
     private boolean isInvincible = false;
     private long invincibilityEndTime = 0;
     private Player lastHitter;
+    public int slot;
+    private float targetX, targetY;
+    private boolean isRemote = false;
+    private boolean networkInvincible = false;
+    private long ignoreNetworkUntil = 0;
 
-    public Player(String name, float x, float y, float initialAngle, int speed) {        this.name = name;
+    public Player(String name, float x, float y, float initialAngle, int speed, int slot) {
+        this.name = name;
         this.xPos = x;
         this.yPos = y;
         this.initialX = x;
@@ -46,6 +52,7 @@ public class Player {
         this.angle = initialAngle;        // Aplicamos el ángulo actual
         this.speed = speed;
         this.initialSpeed = speed;
+        this.slot = slot;
         this.paint = new Paint();
         this.paint.setColor(Color.BLUE);
         this.isColliding = false;
@@ -118,7 +125,8 @@ public class Player {
             strokePaint.setStyle(Paint.Style.STROKE);
             strokePaint.setStrokeWidth(3f);
             strokePaint.setColor(Color.BLACK);
-            canvas.drawCircle(xPos, yPos, 25, strokePaint);        }
+            canvas.drawCircle(xPos, yPos, 25, strokePaint);
+        }
     }
 
     // Mantenemos este método para compatibilidad con UI extra si se usa
@@ -134,12 +142,44 @@ public class Player {
 
     public void update() {
         if (destroyed) return;
-        if (!isColliding) {
-            xPos += Math.cos(Math.toRadians(angle)) * speed;
-            yPos += Math.sin(Math.toRadians(angle)) * speed;
+
+        if (isRemote) {
+            // MOVIMIENTO POR RED (Otros jugadores)
+            float dX = targetX - xPos;
+            float dY = targetY - yPos;
+            float distance = (float) Math.hypot(dX, dY);
+
+            if (distance > 500f) {
+                xPos = targetX;
+                yPos = targetY;
+            } else if (distance > 0.5f) {
+                // Factor de interpolación (Lerp) equilibrado para 60fps
+                xPos += dX * 0.3f;
+                yPos += dY * 0.3f;
+            }
         } else {
-            xPos += Math.cos(Math.toRadians(collisionAngle)) * speed;
-            yPos += Math.sin(Math.toRadians(collisionAngle)) * speed;
+            // Lógica normal para tu jugador local
+            if (isColliding) {
+                // El rebote ignora el joystick
+                xPos += Math.cos(Math.toRadians(collisionAngle)) * speed;
+                yPos += Math.sin(Math.toRadians(collisionAngle)) * speed;
+                speed *= 0.92f; // Rozamiento
+                if (speed < 0.5f) isColliding = false;
+            } else {
+                // Movimiento por joystick
+                xPos += Math.cos(Math.toRadians(angle)) * speed;
+                yPos += Math.sin(Math.toRadians(angle)) * speed;
+
+                // Reconciliación suave con el Maestro
+                if (targetX != 0 && targetY != 0) {
+                    float diffX = targetX - xPos;
+                    float diffY = targetY - yPos;
+                    if (Math.hypot(diffX, diffY) > 8f) { // Umbral de corrección
+                        xPos += diffX * 0.15f;
+                        yPos += diffY * 0.15f;
+                    }
+                }
+            }
         }
     }
 
@@ -148,12 +188,17 @@ public class Player {
         this.invincibilityEndTime = System.currentTimeMillis() + durationMs;
     }
 
+    public void setInvincibleByNetwork(boolean invincible) {
+        this.networkInvincible = invincible;
+    }
+
+    // Modifica el método isInvincible() existente para que considere ambos estados
     public boolean isInvincible() {
-        // Si el tiempo actual superó el final, desactivamos automáticamente
+        // Es invencible si el tiempo local no ha acabado O si la red dice que lo es
         if (isInvincible && System.currentTimeMillis() > invincibilityEndTime) {
             isInvincible = false;
         }
-        return isInvincible;
+        return isInvincible || networkInvincible;
     }
 
     public void setSpeed(float speed) {
@@ -177,6 +222,8 @@ public class Player {
     public void setCollisionAngle(float angle) {
         this.collisionAngle = angle;
     }
+
+    public float getCollisionAngle() { return collisionAngle; }
 
     public void setXPos(float x) {
         this.xPos = x;
@@ -213,6 +260,20 @@ public class Player {
         setInvincible(2000);
     }
 
+
+    /**
+     * Fuerza la posición del jugador ignorando la interpolación de red.
+     * Útil para respawns o teletransportes.
+     */
+    public void snapToPosition(float x, float y) {
+        this.xPos = x;
+        this.yPos = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.isColliding = false;
+        this.speed = 0;
+    }
+
     public float getXPos() {
         return xPos;
     }
@@ -232,7 +293,11 @@ public class Player {
             return;
         }
         this.isColliding = colliding;
-        if (colliding) this.speed = 0f;
+        if (colliding) {
+            this.speed = 0f;
+            // Bloqueamos red localmente también por si acaso
+            this.ignoreNetworkUntil = System.currentTimeMillis() + 400;
+        }
     }
 
     public boolean isColliding() {
@@ -255,20 +320,28 @@ public class Player {
         if (l <= 0) markDestroyed();
     }
 
+    public int getColor() {
+        return paint.getColor();
+    }
+
     public void loseLife() {
-        if (destroyed) return;
+        if (destroyed || isInvincible()) return;
         if (lives > 0) lives--;
         if (lives <= 0) {
             markDestroyed();
         }
     }
 
+    public void setKills(int kills) {
+        this.kills = kills;
+    }
+
     private void markDestroyed() {
         destroyed = true;
         isColliding = true;
         speed = 0f;
-        this.xPos = -1000f;
-        this.yPos = -1000f;
+        this.xPos = -5000f;
+        this.yPos = -5000f;
     }
 
     public int getKills() { return kills; }
@@ -283,4 +356,24 @@ public class Player {
         markDestroyed();
     }
 
+    // Método para que GameView marque si es un clon remoto
+    public void setIsRemote(boolean remote) {
+        this.isRemote = remote;
+        if (!remote) {
+            // Si dejo de ser remoto, limpio los objetivos de red
+            // para que p.update() use la velocidad/ángulo actuales
+            this.targetX = 0;
+            this.targetY = 0;
+        }
+    }
+
+    // Método para recibir la posición de red
+    public void setRemoteTarget(float x, float y) {
+        this.targetX = x;
+        this.targetY = y;
+    }
+
+    public void blockNetworkUpdate(long durationMs) {
+        this.ignoreNetworkUntil = System.currentTimeMillis() + durationMs;
+    }
 }

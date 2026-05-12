@@ -51,4 +51,30 @@ public class PreferenceHelper {
     public void setGameMode(String mode) {
         prefs.edit().putString(AppConstants.KEY_GAME_MODE, mode).apply();
     }
+
+    public String getUserId() {
+        String id = prefs.getString("user_id", null);
+        if (id == null) {
+            // Generamos uno y LO GUARDAMOS inmediatamente para que sea fijo
+            id = "Guest_" + System.currentTimeMillis();
+            prefs.edit().putString("user_id", id).apply();
+        }
+        return id;
+    }
+
+    public void setUserId(String id) {
+        if (id == null) {
+            prefs.edit().remove("user_id").apply();
+        } else {
+            prefs.edit().putString("user_id", id).apply();
+        }
+    }
+
+    public String getUserName() {
+        return prefs.getString("user_name", "Star_Player");
+    }
+
+    public void setUserName(String name) {
+        prefs.edit().putString("user_name", name).apply();
+    }
 }

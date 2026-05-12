@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Color de fondo del item (Negro casi opaco) -->
+    <solid android:color="#F2000000" />
+
+    <!-- Radio de las esquinas (Debe ser ligeramente menor al del CardView para que encaje bien) -->
+    <corners android:radius="11dp" />
+</shape>
