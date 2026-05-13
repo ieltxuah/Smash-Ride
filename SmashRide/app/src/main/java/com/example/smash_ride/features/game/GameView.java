@@ -357,6 +357,8 @@ public class GameView extends SurfaceView implements Runnable {
                 state.put("lives", p.getLives());
                 state.put("kills", p.getKills());
                 state.put("inv", p.isInvincible());
+                state.put("livesLost", p.getLivesLostMatch());
+                state.put("hitsDeal", p.getHitsDealtMatch());
 
                 // El maestro escribe la "Verdad" en el nodo state de CADA jugador
                 roomRef.child("players").child(uid).child("state").updateChildren(state);
@@ -637,6 +639,9 @@ public class GameView extends SurfaceView implements Runnable {
         if (playerA == null || playerB == null) return;
         if (playerA.isDestroyed() || playerB.isDestroyed()) return;
 
+        playerA.addHit();
+        playerB.addHit();
+
         float dx = playerA.getXPos() - playerB.getXPos();
         float dy = playerA.getYPos() - playerB.getYPos();
         float distance = (float) Math.hypot(dx, dy);
@@ -753,6 +758,14 @@ public class GameView extends SurfaceView implements Runnable {
 
         Boolean inv = state.child("inv").getValue(Boolean.class);
         if (inv != null) p.setInvincibleByNetwork(inv);
+
+        Integer lvLost = state.child("livesLost").getValue(Integer.class);
+        if (lvLost != null && lvLost != p.getLivesLostMatch() && p.slot == mySlot) vibratePhoneThrottled();
+        if (lvLost != null) p.setLivesLostMatch(lvLost);
+
+        Integer hitsDeal = state.child("hitsDeal").getValue(Integer.class);
+        if (hitsDeal != null && hitsDeal != p.getHitsDealtMatch() && p.slot == mySlot) vibratePhoneThrottled();
+        if (hitsDeal != null) p.setHitsDealtMatch(hitsDeal);
 
         // Posición
         Float rx = state.child("relX").getValue(Float.class);
@@ -931,5 +944,9 @@ public class GameView extends SurfaceView implements Runnable {
                 break;
         }
         return true;
+    }
+
+    public Player getLocalPlayer() {
+        return getPlayerBySlot(offline ? 0 : mySlot);
     }
 }

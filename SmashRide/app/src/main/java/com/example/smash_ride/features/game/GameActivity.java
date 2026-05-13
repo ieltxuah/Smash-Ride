@@ -21,6 +21,7 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.network.FirebaseManager;
+import com.example.smash_ride.core.network.FirestoreRankingManager;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.game.online.OnlineMatchmaker;
@@ -327,46 +328,75 @@ public class GameActivity extends BaseActivity implements GameOverListener {
 
     @Override
     public void onGameOver() {
-        isGameRunning = false;
+        if (!isGameRunning) return;    isGameRunning = false;
         if (gameView != null) gameView.pause();
 
-        // Lógica de transición a Win/Lose o Ranking
-        int aliveCount = 0;
-        Player winner = null;
+        // 1. Extraer datos del jugador LOCAL
+        Player localPlayer = null;
+        int myActualSlot = offlineMode ? 0 : mySlot;
         for (Player p : players) {
-            if (!p.isDestroyed()) {
-                aliveCount++;
-                winner = p;
+            if (p.slot == myActualSlot) {
+                localPlayer = p;
+                break;
             }
         }
 
-        if (selectedMode == GameView.GameMode.LIVES) {
-            int localIdx = offlineMode ? 0 : mySlot;
-            if (aliveCount == 1 && winner == players.get(localIdx)) {
-                startActivity(new Intent(this, WinActivity.class));
+        if (localPlayer != null) {
+            Log.d("FIRESTORE_CHECK", "Subiendo datos de: " + prefHelper.getUserName());
+
+            String uId = prefHelper.getUserId();
+            String uName = prefHelper.getUserName();
+            String modeStr = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
+
+            // Calcular si soy ganador
+            int alive = 0;
+            for (Player p : players) if (!p.isDestroyed()) alive++;
+            boolean winner = (selectedMode == GameView.GameMode.LIVES && alive == 1 && !localPlayer.isDestroyed());
+
+            // Llamada al manager
+            FirestoreRankingManager rankingMgr = new FirestoreRankingManager();
+            rankingMgr.updateStats(uId, uName, modeStr,
+                    localPlayer.getKills(),
+                    localPlayer.getLivesLostMatch(),
+                    localPlayer.getHitsDealtMatch(),
+                    winner);
+
+            if (selectedMode == GameView.GameMode.TIMER) {
+                rankingMgr.updateTimerKing(uId, localPlayer.getKills());
+            }
+        }
+
+        // 2. Navegación (con un pequeño delay para asegurar la escritura)
+        handler.postDelayed(() -> {
+            if (selectedMode == GameView.GameMode.LIVES) {
+                boolean amIAlive = false;
+                for(Player p : players) if(p.slot == (offlineMode?0:mySlot) && !p.isDestroyed()) amIAlive = true;
+
+                if (amIAlive) {
+                    startActivity(new Intent(this, WinActivity.class));
+                } else {
+                    startActivity(new Intent(this, LoseActivity.class));
+                }
             } else {
-                startActivity(new Intent(this, LoseActivity.class));
+                // Modo Timer -> Ranking
+                Intent i = new Intent(this, RankingGameActivity.class);
+                ArrayList<String> names = new ArrayList<>();
+                ArrayList<Integer> kills = new ArrayList<>();
+                ArrayList<Integer> colors = new ArrayList<>();
+                for (Player p : players) {
+                    names.add(p.name);
+                    kills.add(p.getKills());
+                    colors.add(p.getColor());
+                }
+                i.putStringArrayListExtra("NAMES", names);
+                i.putIntegerArrayListExtra("KILLS", kills);
+                i.putIntegerArrayListExtra("COLORS", colors);
+                startActivity(i);
             }
-        } else {
-            Intent i = new Intent(this, RankingGameActivity.class);
-            ArrayList<String> names = new ArrayList<>();
-            ArrayList<Integer> kills = new ArrayList<>();
-            ArrayList<Integer> colorsList = new ArrayList<>(); // Nueva lista para colores
-
-            for (Player p : players) {
-                names.add(p.name);
-                kills.add(p.getKills());
-                // Necesitamos el color de la pintura que se usó para la estrella
-                colorsList.add(p.getColor());
-            }
-
-            i.putStringArrayListExtra("NAMES", names);
-            i.putIntegerArrayListExtra("KILLS", kills);
-            i.putIntegerArrayListExtra("COLORS", colorsList); // Pasamos los colores
-            startActivity(i);
-        }
-        finish();
+            finish();
+        }, 500);
     }
+
 
     @Override
     protected void onResume() {

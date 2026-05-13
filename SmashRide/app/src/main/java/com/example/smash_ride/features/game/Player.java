@@ -35,12 +35,13 @@ public class Player {
     private boolean destroyed = false;
     private boolean isInvincible = false;
     private long invincibilityEndTime = 0;
-    private Player lastHitter;
     public int slot;
     private float targetX, targetY;
     private boolean isRemote = false;
     private boolean networkInvincible = false;
-    private long ignoreNetworkUntil = 0;
+
+    private int livesLostMatch = 0; // Vidas perdidas en esta partida
+    private int hitsDealtMatch = 0; // Golpes dados a otros en esta partida
 
     public Player(String name, float x, float y, float initialAngle, int speed, int slot) {
         this.name = name;
@@ -129,17 +130,6 @@ public class Player {
         }
     }
 
-    // Mantenemos este método para compatibilidad con UI extra si se usa
-    public void drawWithStatus(Canvas canvas) {
-        if (destroyed) return;
-        draw(canvas); // Dibuja el sprite
-        Paint text = new Paint();
-        text.setColor(Color.WHITE); // Cambiado a blanco para que se vea sobre fondo oscuro
-        text.setTextSize(25f);
-        text.setFakeBoldText(true);
-        canvas.drawText(String.valueOf(lives), xPos - 10, yPos - 35, text);
-    }
-
     public void update() {
         if (destroyed) return;
 
@@ -219,26 +209,12 @@ public class Player {
         return angle;
     }
 
-    public void setCollisionAngle(float angle) {
-        this.collisionAngle = angle;
-    }
-
-    public float getCollisionAngle() { return collisionAngle; }
-
     public void setXPos(float x) {
         this.xPos = x;
     }
 
     public void setYPos(float y) {
         this.yPos = y;
-    }
-
-    public void setLastHitter(Player hitter) {
-        this.lastHitter = hitter;
-    }
-
-    public Player getLastHitter() {
-        return lastHitter;
     }
 
     public void resetPosition() {
@@ -256,7 +232,6 @@ public class Player {
         this.speed = initialSpeed;
 
         // 2 segundos de protección al reaparecer o empezar
-        this.lastHitter = null; // Limpiar el agresor al resetear
         setInvincible(2000);
     }
 
@@ -282,10 +257,6 @@ public class Player {
         return yPos;
     }
 
-    public float getInitialSpeed() {
-        return initialSpeed;
-    }
-
     public void setColliding(boolean colliding) {
         if (destroyed) {
             this.isColliding = true;
@@ -296,7 +267,6 @@ public class Player {
         if (colliding) {
             this.speed = 0f;
             // Bloqueamos red localmente también por si acaso
-            this.ignoreNetworkUntil = System.currentTimeMillis() + 400;
         }
     }
 
@@ -326,7 +296,10 @@ public class Player {
 
     public void loseLife() {
         if (destroyed || isInvincible()) return;
-        if (lives > 0) lives--;
+        if (lives > 0) {
+            lives--;
+            livesLostMatch++;
+        }
         if (lives <= 0) {
             markDestroyed();
         }
@@ -335,6 +308,10 @@ public class Player {
     public void setKills(int kills) {
         this.kills = kills;
     }
+
+    public void addHit() { hitsDealtMatch++; }
+    public int getLivesLostMatch() { return livesLostMatch; }
+    public int getHitsDealtMatch() { return hitsDealtMatch; }
 
     private void markDestroyed() {
         destroyed = true;
@@ -373,7 +350,11 @@ public class Player {
         this.targetY = y;
     }
 
-    public void blockNetworkUpdate(long durationMs) {
-        this.ignoreNetworkUntil = System.currentTimeMillis() + durationMs;
+    public void setLivesLostMatch(int lvLost) {
+        this.livesLostMatch = lvLost;
+    }
+
+    public void setHitsDealtMatch(int hitsDeal) {
+        this.hitsDealtMatch = hitsDeal;
     }
 }
