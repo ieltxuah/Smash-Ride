@@ -629,7 +629,8 @@ public class GameView extends SurfaceView implements Runnable {
                         player.loseLife();
                     }
                     player.resetPosition();
-                    vibratePhoneThrottled();
+                    if (player.slot == mySlot)
+                        vibratePhoneThrottled();
                 }
             }
         }
