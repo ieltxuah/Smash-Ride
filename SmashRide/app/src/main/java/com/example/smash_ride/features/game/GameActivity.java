@@ -366,35 +366,33 @@ public class GameActivity extends BaseActivity implements GameOverListener {
             }
         }
 
-        // 2. Navegación (con un pequeño delay para asegurar la escritura)
-        handler.postDelayed(() -> {
-            if (selectedMode == GameView.GameMode.LIVES) {
-                boolean amIAlive = false;
-                for(Player p : players) if(p.slot == (offlineMode?0:mySlot) && !p.isDestroyed()) amIAlive = true;
+        // 2. Navegación
+        if (selectedMode == GameView.GameMode.LIVES) {
+            boolean amIAlive = false;
+            for(Player p : players) if(p.slot == (offlineMode?0:mySlot) && !p.isDestroyed()) amIAlive = true;
 
-                if (amIAlive) {
-                    startActivity(new Intent(this, WinActivity.class));
-                } else {
-                    startActivity(new Intent(this, LoseActivity.class));
-                }
+            if (amIAlive) {
+                startActivity(new Intent(this, WinActivity.class));
             } else {
-                // Modo Timer -> Ranking
-                Intent i = new Intent(this, RankingGameActivity.class);
-                ArrayList<String> names = new ArrayList<>();
-                ArrayList<Integer> kills = new ArrayList<>();
-                ArrayList<Integer> colors = new ArrayList<>();
-                for (Player p : players) {
-                    names.add(p.name);
-                    kills.add(p.getKills());
-                    colors.add(p.getColor());
-                }
-                i.putStringArrayListExtra("NAMES", names);
-                i.putIntegerArrayListExtra("KILLS", kills);
-                i.putIntegerArrayListExtra("COLORS", colors);
-                startActivity(i);
+                startActivity(new Intent(this, LoseActivity.class));
             }
-            finish();
-        }, 500);
+        } else {
+            // Modo Timer -> Ranking
+            Intent i = new Intent(this, RankingGameActivity.class);
+            ArrayList<String> names = new ArrayList<>();
+            ArrayList<Integer> kills = new ArrayList<>();
+            ArrayList<Integer> colors = new ArrayList<>();
+            for (Player p : players) {
+                names.add(p.name);
+                kills.add(p.getKills());
+                colors.add(p.getColor());
+            }
+            i.putStringArrayListExtra("NAMES", names);
+            i.putIntegerArrayListExtra("KILLS", kills);
+            i.putIntegerArrayListExtra("COLORS", colors);
+            startActivity(i);
+        }
+        finish();
     }
 
 

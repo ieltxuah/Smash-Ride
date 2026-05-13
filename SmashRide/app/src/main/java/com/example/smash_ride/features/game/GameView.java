@@ -288,6 +288,23 @@ public class GameView extends SurfaceView implements Runnable {
                 p.update(); // Interpolación
                 if (p.slot == mySlot && !p.isDestroyed()) {
                     checkCollision(p);
+
+                    for (Player other : players) {
+                        if (other != p && !other.isDestroyed() && !other.isInvincible()) {
+                            float dist = (float) Math.hypot(p.getXPos() - other.getXPos(), p.getYPos() - other.getYPos());
+
+                            // Si la distancia es menor al radio de colisión (aprox 55-60)
+                            if (dist < 58f) {
+                                // FECTO SECO: Si el esclavo detecta choque,
+                                // detenemos su interpolación y "anclamos" la posición
+                                // un instante para que el rebote del maestro se sienta inmediato.
+                                if (p.getSpeed() > 2f) {
+                                    // Reducimos velocidad local para que el rebote del host se vea "seco"
+                                    p.setSpeed(p.getSpeed() * -0.5f);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -744,8 +761,6 @@ public class GameView extends SurfaceView implements Runnable {
         }
         return null;
     }
-
-    // En app/src/main/java/com/example/smash_ride/features/game/GameView.java
 
     private void updatePlayerFromState(Player p, DataSnapshot state) {
         if (!state.exists()) return;
