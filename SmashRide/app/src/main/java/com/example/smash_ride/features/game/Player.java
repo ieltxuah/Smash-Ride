@@ -10,6 +10,8 @@ import android.graphics.Paint;
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.graphics.SpriteColorizer;
 
+import java.util.LinkedList;
+
 public class Player {
     // Variable para el sprite coloreado
     private Bitmap playerBitmap;
@@ -42,6 +44,17 @@ public class Player {
 
     private int livesLostMatch = 0; // Vidas perdidas en esta partida
     private int hitsDealtMatch = 0; // Golpes dados a otros en esta partida
+
+    private static class TrailPoint {
+        float x, y, angle;
+        TrailPoint(float x, float y, float angle) {
+            this.x = x; this.y = y; this.angle = angle;
+        }
+    }
+    private final LinkedList<TrailPoint> trailHistory = new LinkedList<>();
+    private final int MAX_TRAIL_POINTS = 5; // Número de clones
+    private boolean isBoosting = false;     // Estado para saber si dibujar la estela
+    private final Paint trailPaint = new Paint(); // Paint para la transparencia
 
     public Player(String name, float x, float y, float initialAngle, int speed, int slot) {
         this.name = name;
@@ -88,11 +101,39 @@ public class Player {
     public void draw(Canvas canvas) {
         if (destroyed) return;
 
+        // 1. DIBUJAR LA ESTELA (CLONES)
+        if (!trailHistory.isEmpty()) {
+            // Iteramos del más antiguo al más reciente
+            for (int i = 0; i < trailHistory.size(); i++) {
+                TrailPoint tp = trailHistory.get(i);
+
+                // Calculamos transparencia: el más antiguo es más transparente
+                // i=0 es el más reciente, i=4 es el más antiguo
+                int alpha = 150 - (i * 25);
+                if (alpha < 0) alpha = 0;
+                trailPaint.setAlpha(alpha);
+
+                canvas.save();
+                canvas.translate(tp.x, tp.y);
+                canvas.rotate(tp.angle + 40);
+
+                // Dibujamos el sprite original pero con el paint transparente
+                if (playerBitmap != null) {
+                    canvas.drawBitmap(playerBitmap,
+                            -(playerBitmap.getWidth() / 2f),
+                            -(playerBitmap.getHeight() / 2f),
+                            trailPaint);
+                }
+                canvas.restore();
+            }
+        }
+
         // Si es invencible, parpadea (se dibuja frame sí, frame no)
         if (isInvincible() && (System.currentTimeMillis() % 200 < 100)) {
             return;
         }
 
+        // 2. DIBUJAR EL JUGADOR ORIGINAL
         if (playerBitmap != null) {
             // 1. Guardar el estado actual del canvas
             canvas.save();
@@ -171,6 +212,28 @@ public class Player {
                 }
             }
         }
+
+        // GESTIÓN DE LA MEMORIA DE LA ESTELA
+        if (isBoosting) {
+            // Guardamos la posición actual al principio de la lista
+            trailHistory.addFirst(new TrailPoint(xPos, yPos, angle));
+            if (trailHistory.size() > MAX_TRAIL_POINTS) {
+                trailHistory.removeLast();
+            }
+        } else {
+            // Si no hay boost, vamos eliminando los puntos poco a poco para que la estela desaparezca suavemente
+            if (!trailHistory.isEmpty()) {
+                trailHistory.removeLast();
+            }
+        }
+    }
+
+    public void setBoosting(boolean boosting) {
+        this.isBoosting = boosting;
+    }
+
+    public boolean getBoosting() {
+        return isBoosting;
     }
 
     public void setInvincible(long durationMs) {
