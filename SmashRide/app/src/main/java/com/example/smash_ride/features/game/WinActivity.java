@@ -11,12 +11,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
+import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 
-public class WinActivity extends AppCompatActivity {
+public class WinActivity extends BaseActivity {
 
     private TranslationManager translationManager;
     private String currentLang;

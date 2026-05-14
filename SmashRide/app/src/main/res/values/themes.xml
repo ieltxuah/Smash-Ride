@@ -8,6 +8,10 @@
 
         <!-- Esto asegura que los botones también hereden la fuente -->
         <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+
+        <!-- Quitar específicamente barras de sistema si el modo inmersivo falla -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
     </style>
 
     <style name="Theme.SmashRide" parent="Base.Theme.SmashRide" />

@@ -255,6 +255,7 @@ public class GameView extends SurfaceView implements Runnable {
         // 2. INPUT LOCAL (JOYSTICK)
         if (!player1.isDestroyed()) {
             processLocalInput(delta, player1);
+            player1.setBoosting(boostActive);
             if (!offline && mySlot != currentHostSlot) {
                 syncMyMovement(player1.getAngle(), player1.getSpeed(), boostActive);
             }
@@ -288,6 +289,23 @@ public class GameView extends SurfaceView implements Runnable {
                 p.update(); // Interpolación
                 if (p.slot == mySlot && !p.isDestroyed()) {
                     checkCollision(p);
+
+                    for (Player other : players) {
+                        if (other != p && !other.isDestroyed() && !other.isInvincible()) {
+                            float dist = (float) Math.hypot(p.getXPos() - other.getXPos(), p.getYPos() - other.getYPos());
+
+                            // Si la distancia es menor al radio de colisión (aprox 55-60)
+                            if (dist < 58f) {
+                                // FECTO SECO: Si el esclavo detecta choque,
+                                // detenemos su interpolación y "anclamos" la posición
+                                // un instante para que el rebote del maestro se sienta inmediato.
+                                if (p.getSpeed() > 2f) {
+                                    // Reducimos velocidad local para que el rebote del host se vea "seco"
+                                    p.setSpeed(p.getSpeed() * -0.5f);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -357,6 +375,9 @@ public class GameView extends SurfaceView implements Runnable {
                 state.put("lives", p.getLives());
                 state.put("kills", p.getKills());
                 state.put("inv", p.isInvincible());
+                state.put("livesLost", p.getLivesLostMatch());
+                state.put("hitsDeal", p.getHitsDealtMatch());
+                state.put("boost", p.getBoosting());
 
                 // El maestro escribe la "Verdad" en el nodo state de CADA jugador
                 roomRef.child("players").child(uid).child("state").updateChildren(state);
@@ -589,8 +610,10 @@ public class GameView extends SurfaceView implements Runnable {
                             if (input.exists()) {
                                 Float ang = input.child("angle").getValue(Float.class);
                                 Float spd = input.child("speed").getValue(Float.class);
+                                Boolean boost = input.child("boost").getValue(Boolean.class);
                                 if (ang != null) p.setAngle(ang);
                                 if (spd != null) p.setSpeed(spd);
+                                if (boost != null) p.setBoosting(boost);
                             }
                         } else {
                             // Soy Esclavo: leo dónde puso el Maestro a los otros jugadores
@@ -627,7 +650,8 @@ public class GameView extends SurfaceView implements Runnable {
                         player.loseLife();
                     }
                     player.resetPosition();
-                    vibratePhoneThrottled();
+                    if (player.slot == mySlot)
+                        vibratePhoneThrottled();
                 }
             }
         }
@@ -636,6 +660,9 @@ public class GameView extends SurfaceView implements Runnable {
     private void handleCollision(Player playerA, Player playerB) {
         if (playerA == null || playerB == null) return;
         if (playerA.isDestroyed() || playerB.isDestroyed()) return;
+
+        playerA.addHit();
+        playerB.addHit();
 
         float dx = playerA.getXPos() - playerB.getXPos();
         float dy = playerA.getYPos() - playerB.getYPos();
@@ -739,8 +766,6 @@ public class GameView extends SurfaceView implements Runnable {
         return null;
     }
 
-    // En app/src/main/java/com/example/smash_ride/features/game/GameView.java
-
     private void updatePlayerFromState(Player p, DataSnapshot state) {
         if (!state.exists()) return;
 
@@ -753,6 +778,19 @@ public class GameView extends SurfaceView implements Runnable {
 
         Boolean inv = state.child("inv").getValue(Boolean.class);
         if (inv != null) p.setInvincibleByNetwork(inv);
+
+        Boolean isBoosting = state.child("boost").getValue(Boolean.class);
+        if (isBoosting != null) {
+            p.setBoosting(isBoosting);
+        }
+
+        Integer lvLost = state.child("livesLost").getValue(Integer.class);
+        if (lvLost != null && lvLost != p.getLivesLostMatch() && p.slot == mySlot) vibratePhoneThrottled();
+        if (lvLost != null) p.setLivesLostMatch(lvLost);
+
+        Integer hitsDeal = state.child("hitsDeal").getValue(Integer.class);
+        if (hitsDeal != null && hitsDeal != p.getHitsDealtMatch() && p.slot == mySlot) vibratePhoneThrottled();
+        if (hitsDeal != null) p.setHitsDealtMatch(hitsDeal);
 
         // Posición
         Float rx = state.child("relX").getValue(Float.class);
@@ -931,5 +969,9 @@ public class GameView extends SurfaceView implements Runnable {
                 break;
         }
         return true;
+    }
+
+    public Player getLocalPlayer() {
+        return getPlayerBySlot(offline ? 0 : mySlot);
     }
 }
