@@ -27,6 +27,19 @@
     <string name="win_title">IRABAZI DUZU!</string>
     <string name="lose_title">GALDU DUZU</string>
     <string name="back_to_menu">MENURA ITZULI</string>
+    <!-- Ranking -->
+    <string name="ranking_empty">Daturik ez dago ranking honetan</string>
+    <string name="rank_kills_global">Hilketak Globala</string>
+    <string name="rank_lives_global">Bizitzak Globala</string>
+    <string name="rank_hits_global">Kolpeak Globala</string>
+    <string name="rank_kills_live">Hilketak Bizitza Modua</string>
+    <string name="rank_hits_live">Kolpeak Bizitza Modua</string>
+    <string name="rank_lives_live">Bizitzak Bizitza Modua</string>
+    <string name="rank_kills_timer">Hilketak Denbora Modua</string>
+    <string name="rank_hits_timer">Kolpeak Denbora Modua</string>
+    <string name="rank_lives_timer">Bizitzak Denbora Modua</string>
+    <string name="rank_timer_king">Denboraren Erregea</string>
+    <string name="rank_perfect">Garaipen Perfektua</string>
     <!-- Karruselaren Koloreak -->
     <string name="color_gold">URREZTATUA</string>
     <string name="color_orange">LARANJA</string>

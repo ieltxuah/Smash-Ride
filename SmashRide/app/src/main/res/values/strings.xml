@@ -26,6 +26,19 @@
     <string name="win_title">YOU WIN!</string>
     <string name="lose_title">GAME OVER</string>
     <string name="back_to_menu">BACK TO MENU</string>
+    <!-- Ranking -->
+    <string name="ranking_empty">No data available for this ranking</string>
+    <string name="rank_kills_global">Kills Global</string>
+    <string name="rank_lives_global">Lives Global</string>
+    <string name="rank_hits_global">Hits Global</string>
+    <string name="rank_kills_live">Kills Live Mode</string>
+    <string name="rank_hits_live">Hits Live Mode</string>
+    <string name="rank_lives_live">Lives Live Mode</string>
+    <string name="rank_kills_timer">Kills Timer Mode</string>
+    <string name="rank_hits_timer">Hits Timer Mode</string>
+    <string name="rank_lives_timer">Lives Timer Mode</string>
+    <string name="rank_timer_king">Timer King</string>
+    <string name="rank_perfect">Perfect Victory</string>
     <!-- Colors for Carousel -->
     <string name="color_gold">GOLD</string>
     <string name="color_orange">ORANGE</string>

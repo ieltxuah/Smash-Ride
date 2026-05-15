@@ -181,6 +181,7 @@
             android:layout_width="match_parent"
             android:layout_height="72dp"
             android:text="@string/save"
+            android:textColor="@color/white"
             android:fontFamily="@font/kirby_classic"
             android:textSize="24sp"
             android:backgroundTint="#4CAF50"
