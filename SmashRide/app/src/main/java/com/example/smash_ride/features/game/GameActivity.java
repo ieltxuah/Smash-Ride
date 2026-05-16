@@ -112,7 +112,7 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         matchmaker = new OnlineMatchmaker();
         String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
 
-        matchmaker.findMatch(modeKey, prefHelper.getUserId(), prefHelper.getUserName(),
+        matchmaker.findMatch(modeKey, prefHelper.getOrCreateId(), prefHelper.getUserName(),
                 new OnlineMatchmaker.OnMatchFoundListener() {
                     @Override
                     public void onMatchReady(String id, int slot) {

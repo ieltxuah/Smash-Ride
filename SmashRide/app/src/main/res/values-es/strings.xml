@@ -27,6 +27,13 @@
     <string name="win_title">¡HAS GANADO!</string>
     <string name="lose_title">HAS PERDIDO</string>
     <string name="back_to_menu">VOLVER AL MENÚ</string>
+    <string name="name_hint">Nombre</string>
+    <string name="migrate_guest_action">Migrar Invitado a Usuario</string>
+    <string name="delete_confirm_title">Borrar todos los datos</string>
+    <string name="delete_confirm_msg">Esto eliminará permanentemente tus estadísticas del Ranking.</string>
+    <string name="delete_action">Eliminar</string>
+    <string name="welcome_msg">¡Bienvenido/a, %s!</string>
+    <string name="logout_msg">Sesión cerrada</string>
     <!-- Ranking -->
     <string name="ranking_empty">No hay datos disponibles en este ranking</string>
     <string name="rank_kills_global">Bajas Global</string>

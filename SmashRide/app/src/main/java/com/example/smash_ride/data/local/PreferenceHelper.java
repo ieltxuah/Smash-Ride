@@ -53,25 +53,24 @@ public class PreferenceHelper {
     }
 
     public String getUserId() {
-        String id = prefs.getString("user_id", null);
+        return prefs.getString("user_id", null);
+    }
+
+    public String getOrCreateId() {
+        String id = getUserId();
         if (id == null) {
-            // Generamos uno y LO GUARDAMOS inmediatamente para que sea fijo
             id = "Guest_" + System.currentTimeMillis();
-            prefs.edit().putString("user_id", id).apply();
+            setUserId(id);
         }
         return id;
     }
 
     public void setUserId(String id) {
-        if (id == null) {
-            prefs.edit().remove("user_id").apply();
-        } else {
-            prefs.edit().putString("user_id", id).apply();
-        }
+        prefs.edit().putString("user_id", id).apply();
     }
 
     public String getUserName() {
-        return prefs.getString("user_name", "Star_Player");
+        return prefs.getString("user_name", "Star_User");
     }
 
     public void setUserName(String name) {

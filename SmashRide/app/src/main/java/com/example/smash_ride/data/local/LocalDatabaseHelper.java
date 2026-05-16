@@ -32,6 +32,8 @@ public class LocalDatabaseHelper extends SQLiteOpenHelper {
                 "livesLostTimerMode INTEGER, " +
                 "maxKillsInTimer INTEGER, " +
                 "perfectVictories INTEGER)");
+
+        db.execSQL("CREATE TABLE local_users (userId TEXT PRIMARY KEY, userName TEXT, isGuest INTEGER)");
     }
 
     @Override
@@ -125,5 +127,89 @@ public class LocalDatabaseHelper extends SQLiteOpenHelper {
             this.killsTimerMode = kt; this.hitsTimerMode = ht; this.livesLostTimerMode = lt;
             this.maxKillsInTimer = mkt; this.perfectVictories = pv;
         }
+    }
+
+    public void saveLocalUser(String id, String name, boolean isGuest) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put("userId", id);
+        cv.put("userName", name);
+        cv.put("isGuest", isGuest ? 1 : 0);
+        // CONFLICT_REPLACE hace el "update" si el userId ya existe
+        db.insertWithOnConflict("local_users", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    public String getLocalUserName(String userId) {
+        if (userId == null) return null;
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query("local_users", new String[]{"userName"}, "userId=?", new String[]{userId}, null, null, null);
+        String name = null;
+        if (c.moveToFirst()) {
+            name = c.getString(0);
+        }
+        c.close();
+        return name;
+    }
+
+    public String getGuestId() {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query("local_users", new String[]{"userId"}, "isGuest=1", null, null, null, null);
+        String id = null;
+        if (c.moveToFirst()) id = c.getString(0);
+        c.close();
+        return id;
+    }
+
+    public boolean hasGuestWithData() {
+        SQLiteDatabase db = getReadableDatabase();
+
+        // Comprobamos si hay algún usuario marcado como isGuest=1
+        // que tenga una fila vinculada en la tabla 'rankings'
+        String query = "SELECT COUNT(*) FROM local_users u " +
+                "INNER JOIN rankings r ON u.userId = r.userId " +
+                "WHERE u.isGuest = 1";
+
+        Cursor c = db.rawQuery(query, null);
+        boolean exists = false;
+        if (c.moveToFirst()) {
+            exists = c.getInt(0) > 0;
+        }
+        c.close();
+        return exists;
+    }
+
+    public void deleteGuestUsers() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete("local_users", "isGuest = 1", null);
+    }
+
+    public void updateRankingName(String userId, String newName) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put("userName", newName);
+        db.update("rankings", cv, "userId = ?", new String[]{userId});
+    }
+
+    public void migrateRankingDataLocally(String guestId, String userId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            // 1. Borrar si el usuario ya tenía un registro previo (para evitar conflicto de PK)
+            db.delete("rankings", "userId = ?", new String[]{userId});
+
+            // 2. Cambiar el ID del registro del Guest por el del Usuario nuevo
+            ContentValues cv = new ContentValues();
+            cv.put("userId", userId);
+            db.update("rankings", cv, "userId = ?", new String[]{guestId});
+
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public void deleteUserRanking(String userId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete("rankings", "userId = ?", new String[]{userId});
     }
 }

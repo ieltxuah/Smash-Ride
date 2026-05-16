@@ -41,15 +41,9 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+        String currentId = prefHelper.getOrCreateId();
 
-        FirebaseAuth mAuth = FirebaseAuth.getInstance();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-
-        if (currentUser != null) {
-            // El usuario ya estaba logueado de una sesión anterior
-            prefHelper.setUserId(currentUser.getUid());
-            prefHelper.setUserName(currentUser.getDisplayName());
-        }
+        Log.d("Auth_Setup", "ID de sesión activa: " + currentId);
 
         // 1. Obtener idioma y aplicar Locale ANTES de super.onCreate
         currentLang = prefHelper.getLanguage();

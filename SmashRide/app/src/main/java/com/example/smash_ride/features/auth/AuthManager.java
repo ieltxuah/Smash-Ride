@@ -36,7 +36,7 @@ public class AuthManager {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
                             prefHelper.setUserId(user.getUid());
-                            prefHelper.setUserName(user.getDisplayName());
+                            //prefHelper.setUserName(user.getDisplayName());
                             callback.onSuccess(user);
                         }
                     } else {
@@ -48,8 +48,6 @@ public class AuthManager {
 
     public void logout(Runnable onComplete) {
         mAuth.signOut();
-        prefHelper.setUserId(null); // Vuelve a ser Guest
-        prefHelper.setUserName("Star_Player");
         onComplete.run();
     }
 }

@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
@@ -27,6 +28,7 @@ import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.ui.BaseActivity;
+import com.example.smash_ride.data.local.LocalDatabaseHelper;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.auth.AuthManager;
 import com.example.smash_ride.features.main.MainActivity;
@@ -42,9 +44,12 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SettingsActivity extends BaseActivity {
 
@@ -57,16 +62,21 @@ public class SettingsActivity extends BaseActivity {
     private SeekBar effectsSeekBar;
     private RecyclerView carouselRv;
 
-    private TextView userNameText;
+    private EditText userNameText;
     private TextView authStatusLabel;
     private Button loginLogoutButton;
     private Button deleteDataButton;
+    private EditText editUsernameInput;
+    private Button migrateDataButton;
+    private String lastGuestId;
+    private View editNameContainer;
 
     private String[] labels;
     private String[] codes;
     private String selectedColorTag = "dorado";
     private String currentLang;
 
+    private LocalDatabaseHelper dbHelper;
     private static final int RC_SIGN_IN = 9001;
     private GoogleSignInClient mGoogleSignInClient;
 
@@ -74,6 +84,7 @@ public class SettingsActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
         authManager = new AuthManager(prefHelper);
+        dbHelper = new LocalDatabaseHelper(this);
         currentLang = prefHelper.getLanguage();
 
         // 1. Aplicar idioma al contexto base antes de inflar vistas
@@ -108,6 +119,9 @@ public class SettingsActivity extends BaseActivity {
         loginLogoutButton = findViewById(R.id.login_logout_button);
         deleteDataButton = findViewById(R.id.delete_data_button);
 
+        migrateDataButton = findViewById(R.id.migrate_data_button);
+        lastGuestId = dbHelper.getGuestId();
+
         musicSeekBar.setMax(4);
         effectsSeekBar.setMax(4);
 
@@ -121,6 +135,7 @@ public class SettingsActivity extends BaseActivity {
 
         saveButton.setOnClickListener(v -> saveAndExit());
         deleteDataButton.setOnClickListener(v -> showDeleteConfirmation());
+        migrateDataButton.setOnClickListener(v -> migrateGuestData());
 
         setupSeekBarListeners();
     }
@@ -133,14 +148,18 @@ public class SettingsActivity extends BaseActivity {
         View root = findViewById(android.R.id.content);
         translationManager.scanAndRegisterViews(root);
 
-        // EXCLUSIÓN UX: No traducir el nombre de usuario (usando unregisterView que añadiste)
-        if (userNameText != null) {
-            translationManager.unregisterView(userNameText);
+        // El TranslationManager por defecto traduce el .getText()
+        // Si quieres traducir el Hint manualmente en ML Kit:
+        if (userNameText != null && !(currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en"))) {
+            translationManager.translateRaw(getString(R.string.name_hint), translatedHint -> {
+                userNameText.setHint(translatedHint);
+            });
         }
 
         // Lógica de traducción basada en el contexto del manager
         if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
             translationManager.reloadTextsFromResources();
+            userNameText.setHint(R.string.name_hint);
         } else {
             translationManager.translateIfNeeded();
         }
@@ -163,40 +182,54 @@ public class SettingsActivity extends BaseActivity {
     }
 
     private void setupUserSection() {
-        FirebaseUser user = authManager.getCurrentUser();
-        boolean isLoggedIn = (user != null);
+        String savedName = prefHelper.getUserName();
+        ImageView editIcon = findViewById(R.id.edit_icon_hint);
 
-        if (isLoggedIn) {
-            if(authStatusLabel != null) authStatusLabel.setText(R.string.status_connected);
-            if(loginLogoutButton != null) {
-                loginLogoutButton.setText(R.string.logout_action);
-                // Cambiamos el color a ROJO para Logout
-                loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#FF5252"));
-                if (loginLogoutButton instanceof com.google.android.material.button.MaterialButton) {
-                    ((com.google.android.material.button.MaterialButton) loginLogoutButton)
-                            .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5252")));
+        if (authManager.isLoggedIn()) {
+            authStatusLabel.setText(R.string.status_connected);
+            loginLogoutButton.setText(R.string.logout_action);
+
+            String currentUid = prefHelper.getUserId();
+            String nameFromDb = dbHelper.getLocalUserName(currentUid);
+            if (nameFromDb != null) {
+                savedName = nameFromDb;
+                // Opcional: Actualizar SharedPreferences para que coincida con la DB
+                prefHelper.setUserName(nameFromDb);
+            }
+
+            // MODO EDITABLE: Activamos foco y teclado
+            userNameText.setFocusable(true);
+            userNameText.setFocusableInTouchMode(true);
+            userNameText.setCursorVisible(true);
+            userNameText.setEnabled(true);
+
+            if (editIcon != null) editIcon.setVisibility(View.VISIBLE);
+
+            if (migrateDataButton != null) {
+                if (dbHelper.hasGuestWithData()) {
+                    migrateDataButton.setVisibility(View.VISIBLE);
+                } else {
+                    migrateDataButton.setVisibility(View.GONE);
                 }
             }
-            userNameText.setText(user.getDisplayName() != null ? user.getDisplayName() : "STAR_USER");
-
-            // Si está logueado, mostramos el botón de borrar datos
-            if(deleteDataButton != null) deleteDataButton.setVisibility(View.VISIBLE);
+            deleteDataButton.setVisibility(View.VISIBLE);
         } else {
-            if(authStatusLabel != null) authStatusLabel.setText(R.string.status_disconnected);
-            if(loginLogoutButton != null) {
-                loginLogoutButton.setText(R.string.login_action);
-                // Restauramos el color VERDE para Iniciar Sesión
-                loginLogoutButton.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
-                if (loginLogoutButton instanceof com.google.android.material.button.MaterialButton) {
-                    ((com.google.android.material.button.MaterialButton) loginLogoutButton)
-                            .setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
-                }
-            }
-            if(userNameText != null) userNameText.setText("STAR_USER");
+            authStatusLabel.setText(R.string.status_disconnected);
+            loginLogoutButton.setText(R.string.login_action);
 
-            // UX: Si no está logueado, ocultamos el botón de borrar para evitar accidentes o por privacidad
-            if(deleteDataButton != null) deleteDataButton.setVisibility(View.GONE);
+            // MODO LECTURA: Desactivamos foco y teclado para que actúe como un Label
+            userNameText.setFocusable(false);
+            userNameText.setFocusableInTouchMode(false);
+            userNameText.setCursorVisible(false);
+            // No usamos setEnabled(false) porque eso pondría el texto en gris
+
+            if (editIcon != null) editIcon.setVisibility(View.GONE);
+
+            if (migrateDataButton != null) migrateDataButton.setVisibility(View.GONE);
+            deleteDataButton.setVisibility(View.GONE);
         }
+
+        userNameText.setText(savedName);
     }
 
     private void signIn() {
@@ -206,9 +239,26 @@ public class SettingsActivity extends BaseActivity {
 
     private void signOut() {
         authManager.logout(() -> {
-            mGoogleSignInClient.signOut(); // Limpieza del cliente de Google
-            setupUserSection();
-            Toast.makeText(this, "Sesión cerrada", Toast.LENGTH_SHORT).show();
+            mGoogleSignInClient.signOut().addOnCompleteListener(task -> {
+                // BUSCAR GUEST PREVIO EN DB LOCAL
+                String existingGuestId = dbHelper.getGuestId();
+
+                if (existingGuestId != null) {
+                    prefHelper.setUserId(existingGuestId);
+                    // Recuperar el nombre real de la DB para ese Guest
+                    String lastGuestName = dbHelper.getLocalUserName(existingGuestId);
+                    if (lastGuestName != null) {
+                        prefHelper.setUserName(lastGuestName);
+                    }
+                } else {
+                    prefHelper.setUserId(null);
+                    prefHelper.getOrCreateId();
+                    prefHelper.setUserName("STAR_USER");
+                }
+
+                setupUserSection();
+                showTranslatedToast(getString(R.string.logout_msg));
+            });
         });
     }
 
@@ -225,7 +275,8 @@ public class SettingsActivity extends BaseActivity {
                     @Override
                     public void onSuccess(FirebaseUser user) {
                         setupUserSection();
-                        Toast.makeText(SettingsActivity.this, "¡Bienvenido " + user.getDisplayName() + "!", Toast.LENGTH_SHORT).show();
+                        String rawWelcome = getString(R.string.welcome_msg, user.getDisplayName());
+                        showTranslatedToast(rawWelcome);
                     }
 
                     @Override
@@ -262,6 +313,35 @@ public class SettingsActivity extends BaseActivity {
     }
 
     private void saveAndExit() {
+        // Si estaba en modo editable, guardamos el texto actual
+        String newName = userNameText.getText().toString().trim();
+
+        if (newName.isEmpty()) {
+            Toast.makeText(this, "Name cannot be empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 1. Guardar en SharedPreferences para uso inmediato
+        prefHelper.setUserName(newName);
+
+        // 2. Guardar en SQLite (LocalDatabaseHelper)
+        String currentId = prefHelper.getUserId();
+        boolean isLoggedIn = authManager.isLoggedIn();
+        dbHelper.saveLocalUser(currentId, newName, !isLoggedIn);
+        dbHelper.updateRankingName(currentId, newName);
+
+        // 3. Sincronización con Firestore (Nube)
+        // Usamos SET con MERGE para evitar el error "NOT_FOUND"
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("userId", currentId);
+        userData.put("userName", newName);
+
+        FirebaseFirestore.getInstance().collection("rankings").document(currentId)
+                .set(userData, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> Log.d("Settings_Save", "Firestore sincronizado con éxito"))
+                .addOnFailureListener(e -> Log.e("Settings_Save", "Error al sincronizar Firestore", e));
+
+        // 4. Guardar otros ajustes y salir
         String selLang = codes[langSpinner.getSelectedItemPosition()];
         prefHelper.setLanguage(selLang);
         prefHelper.setMusicVolume(musicSeekBar.getProgress());
@@ -348,19 +428,114 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
+    private void migrateGuestData() {FirebaseUser user = authManager.getCurrentUser();
+        // Validamos que estemos logueados y que realmente exista un Guest Id en la DB local
+        lastGuestId = dbHelper.getGuestId();
+
+        if (user == null || lastGuestId == null) {
+            Toast.makeText(this, "No guest data found to migrate", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String currentUserId = user.getUid();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        // 1. Obtener datos del Guest desde Firestore
+        db.collection("rankings").document(lastGuestId).get().addOnSuccessListener(guestDoc -> {
+            if (!guestDoc.exists()) {
+                // Si no hay datos en la nube, limpiamos la DB local por si acaso y ocultamos el botón
+                dbHelper.deleteGuestUsers();
+                setupUserSection();
+                return;
+            }
+
+            // 2. Obtener datos actuales del Usuario Google para sumar estadísticas
+            db.collection("rankings").document(currentUserId).get().addOnSuccessListener(userDoc -> {
+                Map<String, Object> guestData = guestDoc.getData();
+                Map<String, Object> mergedData = new HashMap<>(guestData);
+
+                if (userDoc.exists()) {
+                    // Sumar estadísticas numéricas de forma dinámica
+                    for (String key : guestData.keySet()) {
+                        Object val = guestData.get(key);
+                        if (val instanceof Number) {
+                            long gVal = ((Number) val).longValue();
+                            long uVal = userDoc.getLong(key) != null ? userDoc.getLong(key) : 0;
+                            mergedData.put(key, gVal + uVal);
+                        }
+                    }
+                }
+
+                // Asegurar que el ID y el nombre sean los actuales
+                mergedData.put("userId", currentUserId);
+                mergedData.put("userName", prefHelper.getUserName());
+
+                // 3. Guardar en Firestore, borrar el Guest de la nube y ACTUALIZAR LOCAL
+                db.collection("rankings").document(currentUserId).set(mergedData)
+                        .addOnSuccessListener(aVoid -> {
+                            // BORRADO EN LA NUBE DEL GUEST
+                            db.collection("rankings").document(lastGuestId).delete();
+
+                            // --- ACTUALIZACIÓN LOCAL (VITAL) ---
+                            // Movemos los datos de ranking local del Guest al Usuario actual
+                            dbHelper.migrateRankingDataLocally(lastGuestId, currentUserId);
+                            // Borramos el rastro de la tabla local_users
+                            dbHelper.deleteGuestUsers();
+
+                            lastGuestId = null;
+
+                            // Refrescar UI (Ocultará el botón Migrate automáticamente)
+                            setupUserSection();
+
+                            Toast.makeText(this, "Migration Successful!", Toast.LENGTH_SHORT).show();
+                        });
+            });
+        }).addOnFailureListener(e -> Log.e("Settings", "Migration failed", e));
+    }
+
     private void showDeleteConfirmation() {
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.delete_all_data))
-                .setMessage("¿Estás seguro de borrar todo el progreso?")
-                .setPositiveButton("BORRAR", (dialog, which) -> {
-                    prefHelper.setMusicVolume(2);
-                    prefHelper.setEffectsVolume(2);
-                    SoundManager.getInstance().updateVolume(this);
-                    Toast.makeText(this, "Datos borrados", Toast.LENGTH_SHORT).show();
-                    loadSettings();
-                })
-                .setNegativeButton("CANCELAR", null)
-                .show();
+        // Obtenemos los textos traducidos para el diálogo
+        String title = getString(R.string.delete_confirm_title);
+        String msg = getString(R.string.delete_confirm_msg);
+        String posBtn = getString(R.string.delete_action);
+        String negBtn = getString(R.string.cancel_action);
+
+        // Usamos translateRaw para asegurar que si el idioma es Chino/etc, ML Kit lo traduzca
+        translationManager.translateRaw(msg, translatedMsg -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(title) // El título suele ser estático o traducido por recursos
+                    .setMessage(translatedMsg)
+                    .setPositiveButton(posBtn, (dialog, which) -> {
+                        String currentId = prefHelper.getUserId();
+
+                        // 1. Borrar en la NUBE (Firestore)
+                        FirebaseFirestore.getInstance().collection("rankings").document(currentId)
+                                .delete()
+                                .addOnSuccessListener(aVoid -> {
+                                    // 2. Borrar en la DB LOCAL (SQLite)
+                                    dbHelper.deleteUserRanking(currentId);
+
+                                    // 3. Resetear preferencias de sonido y nombre (opcional UX)
+                                    prefHelper.setUserName("Star_User");
+                                    userNameText.setText("Star_User");
+
+                                    Toast.makeText(this, "All data deleted", Toast.LENGTH_SHORT).show();
+                                    setupUserSection();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Toast.makeText(this, "Error deleting cloud data", Toast.LENGTH_SHORT).show();
+                                });
+                    })
+                    .setNegativeButton(negBtn, null)
+                    .show();
+        });
+    }
+
+    // Método para traducir strings que no están pegados a una View (Toasts, Diálogos)
+    private void showTranslatedToast(String text) {
+        translationManager.translateRaw(text, translated ->
+                Toast.makeText(SettingsActivity.this, translated, Toast.LENGTH_SHORT).show()
+        );
     }
 
     @Override protected void onResume() {
