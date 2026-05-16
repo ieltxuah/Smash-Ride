@@ -1,4 +1,4 @@
-package com.example.smash_ride.core.network;
+package com.example.smash_ride.data.firebase;
 
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -20,6 +20,16 @@ public class FirestoreRankingManager {
         updates.put("totalKills", FieldValue.increment(kills));
         updates.put("totalHitsDealt", FieldValue.increment(hitsDealt));
         updates.put("totalLivesLost", FieldValue.increment(livesLost));
+
+        if (mode.equals("LIVES")) {
+            updates.put("killsLivesMode", FieldValue.increment(kills));
+            updates.put("hitsLivesMode", FieldValue.increment(hitsDealt));
+            updates.put("livesLostLivesMode", FieldValue.increment(livesLost));
+        } else if (mode.equals("TIMER")) {
+            updates.put("killsTimerMode", FieldValue.increment(kills));
+            updates.put("hitsTimerMode", FieldValue.increment(hitsDealt));
+            updates.put("livesLostTimerMode", FieldValue.increment(livesLost));
+        }
 
         if (mode.equals("LIVES") && isWinner && livesLost == 0) {
             updates.put("perfectVictories", FieldValue.increment(1));

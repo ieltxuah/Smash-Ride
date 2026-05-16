@@ -5,7 +5,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import com.example.smash_ride.core.network.FirebaseManager;
+import com.example.smash_ride.data.firebase.FirebaseManager;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;

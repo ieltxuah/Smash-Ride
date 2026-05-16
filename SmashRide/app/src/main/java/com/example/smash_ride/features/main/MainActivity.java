@@ -21,6 +21,7 @@ import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.graphics.SpriteColorizer;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.features.ranking.RankingActivity;
 import com.example.smash_ride.notifications.NotificationScheduler;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
@@ -40,15 +41,9 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         prefHelper = new PreferenceHelper(this);
+        String currentId = prefHelper.getOrCreateId();
 
-        FirebaseAuth mAuth = FirebaseAuth.getInstance();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-
-        if (currentUser != null) {
-            // El usuario ya estaba logueado de una sesión anterior
-            prefHelper.setUserId(currentUser.getUid());
-            prefHelper.setUserName(currentUser.getDisplayName());
-        }
+        Log.d("Auth_Setup", "ID de sesión activa: " + currentId);
 
         // 1. Obtener idioma y aplicar Locale ANTES de super.onCreate
         currentLang = prefHelper.getLanguage();
@@ -143,10 +138,7 @@ public class MainActivity extends BaseActivity {
         findViewById(R.id.start_button).setOnClickListener(v -> startGame());
 
         // Botón Ranking (Nuevo)
-        findViewById(R.id.ranking_button).setOnClickListener(v -> {
-            Log.d(TAG, "Accediendo al Ranking...");
-            // Aquí iría tu Intent: startActivity(new Intent(this, RankingActivity.class));
-        });
+        findViewById(R.id.ranking_button).setOnClickListener(v -> startRanking());
 
         // Botón Ajustes
         findViewById(R.id.settings_button).setOnClickListener(v -> startSettings());
@@ -214,6 +206,12 @@ public class MainActivity extends BaseActivity {
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         intent.putExtra(AppConstants.EXTRA_GAME_MODE, prefHelper.getGameMode());
         intent.putExtra(AppConstants.EXTRA_OFFLINE, false);
+        startActivity(intent);
+    }
+
+    private void startRanking() {
+        Intent intent = new Intent(this, RankingActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(intent);
     }
 

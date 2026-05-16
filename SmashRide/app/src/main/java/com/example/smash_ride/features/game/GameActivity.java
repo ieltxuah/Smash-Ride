@@ -14,14 +14,13 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
-import com.example.smash_ride.core.network.FirebaseManager;
-import com.example.smash_ride.core.network.FirestoreRankingManager;
+import com.example.smash_ride.data.firebase.FirebaseManager;
+import com.example.smash_ride.data.firebase.FirestoreRankingManager;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.example.smash_ride.features.game.online.OnlineMatchmaker;
@@ -33,7 +32,6 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -114,7 +112,7 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         matchmaker = new OnlineMatchmaker();
         String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
 
-        matchmaker.findMatch(modeKey, prefHelper.getUserId(), prefHelper.getUserName(),
+        matchmaker.findMatch(modeKey, prefHelper.getOrCreateId(), prefHelper.getUserName(),
                 new OnlineMatchmaker.OnMatchFoundListener() {
                     @Override
                     public void onMatchReady(String id, int slot) {

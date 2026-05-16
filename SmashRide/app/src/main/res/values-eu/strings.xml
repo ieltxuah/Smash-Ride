@@ -27,6 +27,26 @@
     <string name="win_title">IRABAZI DUZU!</string>
     <string name="lose_title">GALDU DUZU</string>
     <string name="back_to_menu">MENURA ITZULI</string>
+    <string name="name_hint">Izena</string>
+    <string name="migrate_guest_action">Migratu Gonbidatua Erabiltzailera</string>
+    <string name="delete_confirm_title">Datu guztiak ezabatu</string>
+    <string name="delete_confirm_msg">Horrek etengabe ezabatuko ditu zure estatistikak Rankingetik.</string>
+    <string name="delete_action">Ezabatu</string>
+    <string name="welcome_msg">Ongi etorri, %s!</string>
+    <string name="logout_msg">Saioa itxita</string>
+    <!-- Ranking -->
+    <string name="ranking_empty">Daturik ez dago ranking honetan</string>
+    <string name="rank_kills_global">Hilketak Globala</string>
+    <string name="rank_lives_global">Bizitzak Globala</string>
+    <string name="rank_hits_global">Kolpeak Globala</string>
+    <string name="rank_kills_live">Hilketak Bizitza Modua</string>
+    <string name="rank_hits_live">Kolpeak Bizitza Modua</string>
+    <string name="rank_lives_live">Bizitzak Bizitza Modua</string>
+    <string name="rank_kills_timer">Hilketak Denbora Modua</string>
+    <string name="rank_hits_timer">Kolpeak Denbora Modua</string>
+    <string name="rank_lives_timer">Bizitzak Denbora Modua</string>
+    <string name="rank_timer_king">Denboraren Erregea</string>
+    <string name="rank_perfect">Garaipen Perfektua</string>
     <!-- Karruselaren Koloreak -->
     <string name="color_gold">URREZTATUA</string>
     <string name="color_orange">LARANJA</string>

@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "294624095366-9v4mlt46aa05rbm0fj0t1snk94um9cao.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smash_ride",
+            "certificate_hash": "0652e39a06f5932dfd5c4a7b61dfe59e812528a6"
+          }
+        },
+        {
           "client_id": "294624095366-fhu5nfa37kaqlbaa64qv9pudu1b9q7af.apps.googleusercontent.com",
           "client_type": 3
         }

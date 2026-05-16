@@ -1,4 +1,4 @@
-package com.example.smash_ride.core.network;
+package com.example.smash_ride.data.firebase;
 
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;

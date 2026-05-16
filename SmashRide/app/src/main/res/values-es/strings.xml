@@ -27,6 +27,26 @@
     <string name="win_title">¡HAS GANADO!</string>
     <string name="lose_title">HAS PERDIDO</string>
     <string name="back_to_menu">VOLVER AL MENÚ</string>
+    <string name="name_hint">Nombre</string>
+    <string name="migrate_guest_action">Migrar Invitado a Usuario</string>
+    <string name="delete_confirm_title">Borrar todos los datos</string>
+    <string name="delete_confirm_msg">Esto eliminará permanentemente tus estadísticas del Ranking.</string>
+    <string name="delete_action">Eliminar</string>
+    <string name="welcome_msg">¡Bienvenido/a, %s!</string>
+    <string name="logout_msg">Sesión cerrada</string>
+    <!-- Ranking -->
+    <string name="ranking_empty">No hay datos disponibles en este ranking</string>
+    <string name="rank_kills_global">Bajas Global</string>
+    <string name="rank_lives_global">Vidas Global</string>
+    <string name="rank_hits_global">Golpes Global</string>
+    <string name="rank_kills_live">Bajas Modo Vidas</string>
+    <string name="rank_hits_live">Golpes Modo Vidas</string>
+    <string name="rank_lives_live">Vidas Modo Vidas</string>
+    <string name="rank_kills_timer">Bajas Modo Tiempo</string>
+    <string name="rank_hits_timer">Golpes Modo Tiempo</string>
+    <string name="rank_lives_timer">Vidas Modo Tiempo</string>
+    <string name="rank_timer_king">Rey del Tiempo</string>
+    <string name="rank_perfect">Victoria Perfecta</string>
     <!-- Colores para el Carrusel -->
     <string name="color_gold">DORADO</string>
     <string name="color_orange">NARANJA</string>
