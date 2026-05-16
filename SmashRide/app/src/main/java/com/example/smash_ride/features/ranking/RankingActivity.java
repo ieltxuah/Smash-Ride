@@ -48,6 +48,8 @@ public class RankingActivity extends BaseActivity {
         GifHardwareDecoder.loadGif(this, findViewById(R.id.background_gif), R.raw.background_stars);
 
         setupButtons();
+        currentCriteria = "totalKills";
+        refreshUI(currentCriteria);
         syncFromFirestore();
 
         TranslationManager.getInstance().bindActivity(this);
