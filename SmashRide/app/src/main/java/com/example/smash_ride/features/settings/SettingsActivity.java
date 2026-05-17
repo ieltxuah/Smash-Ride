@@ -104,6 +104,9 @@ public class SettingsActivity extends BaseActivity {
         setupUserSection();
         setupColorCarousel();
 
+        // CARGAR SONIDOS DE EFECTOS PARA EL PREVIEW
+        SoundManager.getInstance().loadGameSounds(this);
+
         // 4. EJECUTAR TRADUCCIÓN (Asegurando que los títulos con ID se registren)
         initTranslation();
     }
@@ -305,7 +308,16 @@ public class SettingsActivity extends BaseActivity {
 
         effectsSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean f) {
-                if (f) prefHelper.setEffectsVolume(p);
+                if (f) {
+                    // 1. Guardar el valor temporalmente en preferencias
+                    prefHelper.setEffectsVolume(p);
+
+                    // 2. Actualizar el volumen interno del SoundManager
+                    SoundManager.getInstance().updateVolume(SettingsActivity.this);
+
+                    // 3. Reproducir el sonido de choque como "preview"
+                    SoundManager.getInstance().playCollisionSound();
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar s) {}
             @Override public void onStopTrackingTouch(SeekBar s) {}
