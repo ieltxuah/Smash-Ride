@@ -284,7 +284,8 @@ public class SettingsActivity extends BaseActivity {
 
                     @Override
                     public void onError(String error) {
-                        translationManager.showTranslatedToast("Error: " + error);
+                        String errorMsg = getString(R.string.error_auth_failed, error);
+                        translationManager.showTranslatedToast(errorMsg);
                     }
                 });
             } catch (ApiException e) {
@@ -329,7 +330,7 @@ public class SettingsActivity extends BaseActivity {
         String newName = userNameText.getText().toString().trim();
 
         if (newName.isEmpty()) {
-            translationManager.showTranslatedToast("Name cannot be empty");
+            translationManager.showTranslatedToast(getString(R.string.error_name_empty));
             return;
         }
 
@@ -440,12 +441,13 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
-    private void migrateGuestData() {FirebaseUser user = authManager.getCurrentUser();
+    private void migrateGuestData() {
+        FirebaseUser user = authManager.getCurrentUser();
         // Validamos que estemos logueados y que realmente exista un Guest Id en la DB local
         lastGuestId = dbHelper.getGuestId();
 
         if (user == null || lastGuestId == null) {
-            translationManager.showTranslatedToast("No guest data found to migrate");
+            translationManager.showTranslatedToast(getString(R.string.msg_no_guest_data));
             return;
         }
 
@@ -499,7 +501,7 @@ public class SettingsActivity extends BaseActivity {
                             // Refrescar UI (Ocultará el botón Migrate automáticamente)
                             setupUserSection();
 
-                            translationManager.showTranslatedToast("Migration Successful!");
+                            translationManager.showTranslatedToast(getString(R.string.msg_migration_success));
                         });
             });
         }).addOnFailureListener(e -> Log.e("Settings", "Migration failed", e));
@@ -550,11 +552,11 @@ public class SettingsActivity extends BaseActivity {
                                     prefHelper.setUserName("Star_User");
                                     userNameText.setText("Star_User");
 
-                                    translationManager.showTranslatedToast("All data deleted");
+                                    translationManager.showTranslatedToast(getString(R.string.msg_delete_success));
                                     setupUserSection();
                                 })
                                 .addOnFailureListener(e -> {
-                                    translationManager.showTranslatedToast("Error deleting cloud data");
+                                    translationManager.showTranslatedToast(getString(R.string.error_delete_cloud));
                                 });
                     })
                     .setNegativeButton(negBtn, null)

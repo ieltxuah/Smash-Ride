@@ -38,6 +38,12 @@
     <string name="welcome_msg">¡Bienvenido/a, %s!</string>
     <string name="logout_msg">Sesión cerrada</string>
     <string name="error_matchmaking_timeout">TIEMPO AGOTADO: No se encontraron suficientes jugadores.</string>
+    <string name="error_name_empty">El nombre no puede estar vacío</string>
+    <string name="msg_no_guest_data">No hay datos de invitado para migrar</string>
+    <string name="msg_migration_success">¡Migración completada con éxito!</string>
+    <string name="msg_delete_success">Todos los datos han sido eliminados</string>
+    <string name="error_delete_cloud">Error al eliminar los datos de la nube</string>
+    <string name="error_auth_failed">Error de autenticación: %s</string>
     <!-- Ranking -->
     <string name="ranking_empty">No hay datos disponibles en este ranking</string>
     <string name="rank_kills_global">Bajas Global</string>
