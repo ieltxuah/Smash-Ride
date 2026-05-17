@@ -37,6 +37,7 @@
     <string name="delete_action">Ezabatu</string>
     <string name="welcome_msg">Ongi etorri, %s!</string>
     <string name="logout_msg">Saioa itxita</string>
+    <string name="error_matchmaking_timeout">DENBORA AGORTUTA: Ez dira nahikoa jokalari aurkitu.</string>
     <!-- Ranking -->
     <string name="ranking_empty">Daturik ez dago ranking honetan</string>
     <string name="rank_kills_global">Hilketak Globala</string>

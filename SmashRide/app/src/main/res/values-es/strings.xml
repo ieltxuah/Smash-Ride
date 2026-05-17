@@ -37,6 +37,7 @@
     <string name="delete_action">Eliminar</string>
     <string name="welcome_msg">¡Bienvenido/a, %s!</string>
     <string name="logout_msg">Sesión cerrada</string>
+    <string name="error_matchmaking_timeout">TIEMPO AGOTADO: No se encontraron suficientes jugadores.</string>
     <!-- Ranking -->
     <string name="ranking_empty">No hay datos disponibles en este ranking</string>
     <string name="rank_kills_global">Bajas Global</string>

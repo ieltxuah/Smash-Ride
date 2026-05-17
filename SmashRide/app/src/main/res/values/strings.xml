@@ -49,6 +49,7 @@
     <string name="delete_action">Delete</string>
     <string name="welcome_msg">Welcome, %s!</string>
     <string name="logout_msg">Session closed</string>
+    <string name="error_matchmaking_timeout">TIMEOUT: Not enough players were found.</string>
     <!-- Colors for Carousel -->
     <string name="color_gold">GOLD</string>
     <string name="color_orange">ORANGE</string>
