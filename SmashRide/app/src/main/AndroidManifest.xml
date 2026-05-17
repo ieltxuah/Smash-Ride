@@ -6,6 +6,17 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <queries>
+        <!-- Permite interactuar con los servicios de traducción de Google -->
+        <intent>
+            <action android:name="com.google.mlkit.nl.translate.Translator" />
+        </intent>
+        <!-- Mejora la visibilidad para Google Sign-In -->
+        <intent>
+            <action android:name="com.google.android.gms.auth.GOOGLE_SIGN_IN" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MyApplication"
         android:allowBackup="true"
