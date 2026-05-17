@@ -29,6 +29,9 @@
     <string name="back_to_menu">VOLVER AL MENÚ</string>
     <string name="name_hint">Nombre</string>
     <string name="migrate_guest_action">Migrar Invitado a Usuario</string>
+    <string name="migrate_confirm_title">Migrar Datos</string>
+    <string name="migrate_confirm_msg">¿Quieres mover todas las estadísticas de la cuenta de invitado a tu cuenta de Google? Esto no se puede deshacer.</string>
+    <string name="migrate_action">Migrar</string>
     <string name="delete_confirm_title">Borrar todos los datos</string>
     <string name="delete_confirm_msg">Esto eliminará permanentemente tus estadísticas del Ranking.</string>
     <string name="delete_action">Eliminar</string>

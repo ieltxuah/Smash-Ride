@@ -29,6 +29,9 @@
     <string name="back_to_menu">MENURA ITZULI</string>
     <string name="name_hint">Izena</string>
     <string name="migrate_guest_action">Migratu Gonbidatua Erabiltzailera</string>
+    <string name="migrate_confirm_title">Datuak Migratu</string>
+    <string name="migrate_confirm_msg">Gonbidatu kontuko estatistika guztiak zure Google kontura mugitu nahi dituzu? Hau ezin da desegin.</string>
+    <string name="migrate_action">Migratu</string>
     <string name="delete_confirm_title">Datu guztiak ezabatu</string>
     <string name="delete_confirm_msg">Horrek etengabe ezabatuko ditu zure estatistikak Rankingetik.</string>
     <string name="delete_action">Ezabatu</string>

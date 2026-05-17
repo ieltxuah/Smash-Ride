@@ -41,6 +41,9 @@
     <string name="rank_perfect">Perfect Victory</string>
     <string name="name_hint">Name</string>
     <string name="migrate_guest_action">Migrate Guest to User</string>
+    <string name="migrate_confirm_title">Migrate Data</string>
+    <string name="migrate_confirm_msg">Do you want to move all statistics from the guest account to your Google account? This cannot be undone.</string>
+    <string name="migrate_action">Migrate</string>
     <string name="delete_confirm_title">Delete All Data</string>
     <string name="delete_confirm_msg">This will permanently remove your statistics from the Ranking.</string>
     <string name="delete_action">Delete</string>
