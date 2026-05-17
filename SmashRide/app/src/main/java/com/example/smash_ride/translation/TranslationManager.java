@@ -11,6 +11,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -42,6 +43,7 @@ public class TranslationManager {
     private final List<View> registeredViews = new ArrayList<>();
     private WeakReference<Activity> boundActivityRef;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean isModelDownloaded = false;
 
     public interface OnRawTranslationListener {
         void onTranslationComplete(String translatedText);
@@ -138,15 +140,36 @@ public class TranslationManager {
     public void setTargetFromAppLang(@Nullable String appLangCode) {
         setForcedLanguage(appLangCode);
         String mapped = LocaleUtils.mapAppLangToMlKit(appLangCode);
+
         if (mapped == null || mapped.equals(sourceLangMlKit)) {
             targetMlKit = null;
+            isModelDownloaded = true; // Inglés no requiere descarga
             return;
         }
+
         this.targetMlKit = mapped;
         TranslatorOptions options = new TranslatorOptions.Builder()
-                .setSourceLanguage(sourceLangMlKit).setTargetLanguage(mapped).build();
+                .setSourceLanguage(sourceLangMlKit)
+                .setTargetLanguage(mapped)
+                .build();
+
+        // Si ya existe un traductor, lo cerramos para liberar memoria
+        if (translator != null) translator.close();
         translator = Translation.getClient(options);
-        translator.downloadModelIfNeeded();
+
+        isModelDownloaded = false; // Bloqueamos traducciones hasta éxito
+
+        translator.downloadModelIfNeeded()
+                .addOnSuccessListener(v -> {
+                    Log.d(TAG, "Modelo listo para: " + mapped);
+                    isModelDownloaded = true;
+                    // Ahora que el modelo existe físicamente, traducimos la UI
+                    translateIfNeeded();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error descarga: " + e.getMessage());
+                    isModelDownloaded = false;
+                });
     }
 
     public void translateIfNeeded() {
@@ -163,13 +186,18 @@ public class TranslationManager {
     }
 
     public void translateRaw(String text, OnRawTranslationListener listener) {
-        if (targetMlKit == null || translator == null) {
+        // Si el modelo no está listo, devolvemos el texto original de inmediato
+        if (targetMlKit == null || translator == null || !isModelDownloaded) {
             listener.onTranslationComplete(text);
             return;
         }
+
         translator.translate(text)
                 .addOnSuccessListener(listener::onTranslationComplete)
-                .addOnFailureListener(e -> listener.onTranslationComplete(text));
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error en translateRaw: " + e.getMessage());
+                    listener.onTranslationComplete(text);
+                });
     }
 
     // Añade esto al final de TranslationManager.java
@@ -178,5 +206,24 @@ public class TranslationManager {
             registeredViews.remove(view);
             originalEnglishById.remove(view.getId());
         }
+    }
+
+    /**
+     * Traduce un texto y lo muestra en un Toast.
+     * Utiliza la Activity vinculada actualmente para asegurar el contexto correcto.
+     */
+    public void showTranslatedToast(String text) {
+        if (text == null || text.isEmpty()) return;
+
+        // Intentamos obtener la Activity vinculada
+        Activity currentActivity = (boundActivityRef != null) ? boundActivityRef.get() : null;
+        // Si no hay activity, usamos el contexto de la aplicación (menos recomendado para Toasts pero seguro)
+        Context context = (currentActivity != null) ? currentActivity : appCtx;
+
+        translateRaw(text, translated -> {
+            mainHandler.post(() -> {
+                Toast.makeText(context, translated, Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 }

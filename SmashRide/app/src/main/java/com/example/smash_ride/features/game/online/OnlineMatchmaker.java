@@ -33,7 +33,7 @@ public class OnlineMatchmaker {
         // --- TIMEOUT DE SEGURIDAD ---
         timeoutRunnable = () -> {
             cleanUp(null, null);
-            listener.onError("TIMEOUT: No se encontraron suficientes jugadores.");
+            listener.onError("ERROR_MATCHMAKING_TIMEOUT");
         };
         timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
 

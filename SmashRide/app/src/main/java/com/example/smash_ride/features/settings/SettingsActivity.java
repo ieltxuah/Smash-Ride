@@ -104,6 +104,9 @@ public class SettingsActivity extends BaseActivity {
         setupUserSection();
         setupColorCarousel();
 
+        // CARGAR SONIDOS DE EFECTOS PARA EL PREVIEW
+        SoundManager.getInstance().loadGameSounds(this);
+
         // 4. EJECUTAR TRADUCCIÓN (Asegurando que los títulos con ID se registren)
         initTranslation();
     }
@@ -135,7 +138,7 @@ public class SettingsActivity extends BaseActivity {
 
         saveButton.setOnClickListener(v -> saveAndExit());
         deleteDataButton.setOnClickListener(v -> showDeleteConfirmation());
-        migrateDataButton.setOnClickListener(v -> migrateGuestData());
+        migrateDataButton.setOnClickListener(v -> showMigrateConfirmation());
 
         setupSeekBarListeners();
     }
@@ -257,7 +260,7 @@ public class SettingsActivity extends BaseActivity {
                 }
 
                 setupUserSection();
-                showTranslatedToast(getString(R.string.logout_msg));
+                translationManager.showTranslatedToast(getString(R.string.logout_msg));
             });
         });
     }
@@ -276,12 +279,13 @@ public class SettingsActivity extends BaseActivity {
                     public void onSuccess(FirebaseUser user) {
                         setupUserSection();
                         String rawWelcome = getString(R.string.welcome_msg, user.getDisplayName());
-                        showTranslatedToast(rawWelcome);
+                        translationManager.showTranslatedToast(rawWelcome);
                     }
 
                     @Override
                     public void onError(String error) {
-                        Toast.makeText(SettingsActivity.this, "Error: " + error, Toast.LENGTH_SHORT).show();
+                        String errorMsg = getString(R.string.error_auth_failed, error);
+                        translationManager.showTranslatedToast(errorMsg);
                     }
                 });
             } catch (ApiException e) {
@@ -305,7 +309,16 @@ public class SettingsActivity extends BaseActivity {
 
         effectsSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean f) {
-                if (f) prefHelper.setEffectsVolume(p);
+                if (f) {
+                    // 1. Guardar el valor temporalmente en preferencias
+                    prefHelper.setEffectsVolume(p);
+
+                    // 2. Actualizar el volumen interno del SoundManager
+                    SoundManager.getInstance().updateVolume(SettingsActivity.this);
+
+                    // 3. Reproducir el sonido de choque como "preview"
+                    SoundManager.getInstance().playCollisionSound();
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar s) {}
             @Override public void onStopTrackingTouch(SeekBar s) {}
@@ -317,7 +330,7 @@ public class SettingsActivity extends BaseActivity {
         String newName = userNameText.getText().toString().trim();
 
         if (newName.isEmpty()) {
-            Toast.makeText(this, "Name cannot be empty", Toast.LENGTH_SHORT).show();
+            translationManager.showTranslatedToast(getString(R.string.error_name_empty));
             return;
         }
 
@@ -428,12 +441,13 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
-    private void migrateGuestData() {FirebaseUser user = authManager.getCurrentUser();
+    private void migrateGuestData() {
+        FirebaseUser user = authManager.getCurrentUser();
         // Validamos que estemos logueados y que realmente exista un Guest Id en la DB local
         lastGuestId = dbHelper.getGuestId();
 
         if (user == null || lastGuestId == null) {
-            Toast.makeText(this, "No guest data found to migrate", Toast.LENGTH_SHORT).show();
+            translationManager.showTranslatedToast(getString(R.string.msg_no_guest_data));
             return;
         }
 
@@ -487,10 +501,29 @@ public class SettingsActivity extends BaseActivity {
                             // Refrescar UI (Ocultará el botón Migrate automáticamente)
                             setupUserSection();
 
-                            Toast.makeText(this, "Migration Successful!", Toast.LENGTH_SHORT).show();
+                            translationManager.showTranslatedToast(getString(R.string.msg_migration_success));
                         });
             });
         }).addOnFailureListener(e -> Log.e("Settings", "Migration failed", e));
+    }
+
+    private void showMigrateConfirmation() {
+        String title = getString(R.string.migrate_confirm_title);
+        String msg = getString(R.string.migrate_confirm_msg);
+        String posBtn = getString(R.string.migrate_action);
+        String negBtn = getString(R.string.cancel_action);
+
+        // Traducimos el cuerpo del mensaje por si el idioma es externo (ML Kit)
+        translationManager.translateRaw(msg, translatedMsg -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setMessage(translatedMsg)
+                    .setPositiveButton(posBtn, (dialog, which) -> {
+                        migrateGuestData(); // Ejecuta la lógica Firestore/SQLite
+                    })
+                    .setNegativeButton(negBtn, null)
+                    .show();
+        });
     }
 
     private void showDeleteConfirmation() {
@@ -519,23 +552,16 @@ public class SettingsActivity extends BaseActivity {
                                     prefHelper.setUserName("Star_User");
                                     userNameText.setText("Star_User");
 
-                                    Toast.makeText(this, "All data deleted", Toast.LENGTH_SHORT).show();
+                                    translationManager.showTranslatedToast(getString(R.string.msg_delete_success));
                                     setupUserSection();
                                 })
                                 .addOnFailureListener(e -> {
-                                    Toast.makeText(this, "Error deleting cloud data", Toast.LENGTH_SHORT).show();
+                                    translationManager.showTranslatedToast(getString(R.string.error_delete_cloud));
                                 });
                     })
                     .setNegativeButton(negBtn, null)
                     .show();
         });
-    }
-
-    // Método para traducir strings que no están pegados a una View (Toasts, Diálogos)
-    private void showTranslatedToast(String text) {
-        translationManager.translateRaw(text, translated ->
-                Toast.makeText(SettingsActivity.this, translated, Toast.LENGTH_SHORT).show()
-        );
     }
 
     @Override protected void onResume() {

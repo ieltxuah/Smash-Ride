@@ -29,11 +29,21 @@
     <string name="back_to_menu">MENURA ITZULI</string>
     <string name="name_hint">Izena</string>
     <string name="migrate_guest_action">Migratu Gonbidatua Erabiltzailera</string>
+    <string name="migrate_confirm_title">Datuak Migratu</string>
+    <string name="migrate_confirm_msg">Gonbidatu kontuko estatistika guztiak zure Google kontura mugitu nahi dituzu? Hau ezin da desegin.</string>
+    <string name="migrate_action">Migratu</string>
     <string name="delete_confirm_title">Datu guztiak ezabatu</string>
     <string name="delete_confirm_msg">Horrek etengabe ezabatuko ditu zure estatistikak Rankingetik.</string>
     <string name="delete_action">Ezabatu</string>
     <string name="welcome_msg">Ongi etorri, %s!</string>
     <string name="logout_msg">Saioa itxita</string>
+    <string name="error_matchmaking_timeout">DENBORA AGORTUTA: Ez dira nahikoa jokalari aurkitu.</string>
+    <string name="error_name_empty">El nombre no puede estar vacío</string>
+    <string name="msg_no_guest_data">No hay datos de invitado para migrar</string>
+    <string name="msg_migration_success">¡Migración completada con éxito!</string>
+    <string name="msg_delete_success">Todos los datos han sido eliminados</string>
+    <string name="error_delete_cloud">Error al eliminar los datos de la nube</string>
+    <string name="error_auth_failed">Error de autenticación: %s</string>
     <!-- Ranking -->
     <string name="ranking_empty">Daturik ez dago ranking honetan</string>
     <string name="rank_kills_global">Hilketak Globala</string>

@@ -29,23 +29,23 @@
             android:paddingEnd="16dp">
 
             <!-- Global Group -->
-            <Button android:id="@+id/btn_kills" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_global" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_lives" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_global" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_hits" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_global" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_kills" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_global" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_lives" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_global" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_hits" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_global" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
 
             <!-- Live Mode Group -->
-            <Button android:id="@+id/btn_kills_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_live" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_hits_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_live" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_lives_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_live" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_kills_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_live" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_hits_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_live" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_lives_live" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_live" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
 
             <!-- Timer Mode Group -->
-            <Button android:id="@+id/btn_kills_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_timer" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_hits_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_timer" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_lives_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_timer" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_kills_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_kills_timer" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_hits_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_hits_timer" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_lives_timer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_lives_timer" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
 
             <!-- Special -->
-            <Button android:id="@+id/btn_timer_king" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_timer_king" android:textSize="12sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
-            <Button android:id="@+id/btn_perfect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_perfect" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_timer_king" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_timer_king" android:fontFamily="@font/kirby_classic" android:textSize="12sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
+            <Button android:id="@+id/btn_perfect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rank_perfect" android:fontFamily="@font/kirby_classic" android:textSize="11sp" style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/white"/>
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -73,10 +73,21 @@
         app:layout_constraintTop_toTopOf="@id/list_container" app:layout_constraintBottom_toBottomOf="@id/list_container"
         app:layout_constraintStart_toStartOf="@id/list_container" app:layout_constraintEnd_toEndOf="@id/list_container"/>
 
-    <com.google.android.material.button.MaterialButton android:id="@+id/back_menu"
-        android:layout_width="200dp" android:layout_height="60dp" android:text="@string/back_to_menu"
-        android:layout_marginBottom="20dp" app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:textColor="@color/white" app:strokeColor="@color/white"/>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/back_menu"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="250dp"
+        android:layout_height="70dp"
+        android:text="@string/back_to_menu"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:fontFamily="@font/kirby_classic"
+        app:strokeColor="@color/white"
+        app:strokeWidth="3dp"
+        app:cornerRadius="20dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="20dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

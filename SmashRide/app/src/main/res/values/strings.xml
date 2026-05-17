@@ -41,11 +41,21 @@
     <string name="rank_perfect">Perfect Victory</string>
     <string name="name_hint">Name</string>
     <string name="migrate_guest_action">Migrate Guest to User</string>
+    <string name="migrate_confirm_title">Migrate Data</string>
+    <string name="migrate_confirm_msg">Do you want to move all statistics from the guest account to your Google account? This cannot be undone.</string>
+    <string name="migrate_action">Migrate</string>
     <string name="delete_confirm_title">Delete All Data</string>
     <string name="delete_confirm_msg">This will permanently remove your statistics from the Ranking.</string>
     <string name="delete_action">Delete</string>
     <string name="welcome_msg">Welcome, %s!</string>
     <string name="logout_msg">Session closed</string>
+    <string name="error_matchmaking_timeout">TIMEOUT: Not enough players were found.</string>
+    <string name="error_name_empty">Name cannot be empty</string>
+    <string name="msg_no_guest_data">No guest data found to migrate</string>
+    <string name="msg_migration_success">Migration Successful!</string>
+    <string name="msg_delete_success">All data deleted</string>
+    <string name="error_delete_cloud">Error deleting cloud data</string>
+    <string name="error_auth_failed">Authentication Error: %s</string>
     <!-- Colors for Carousel -->
     <string name="color_gold">GOLD</string>
     <string name="color_orange">ORANGE</string>

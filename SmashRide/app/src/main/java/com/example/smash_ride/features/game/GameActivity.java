@@ -125,7 +125,15 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                     @Override
                     public void onError(String error) {
                         handler.post(() -> {
-                            Toast.makeText(GameActivity.this, error, Toast.LENGTH_LONG).show();
+                            String finalMessage;
+                            if ("ERROR_MATCHMAKING_TIMEOUT".equals(error)) {
+                                finalMessage = getString(R.string.error_matchmaking_timeout);
+                            } else {
+                                finalMessage = error;
+                            }
+
+                            // 2. Mostrar el diálogo estético (que traduce internamente)
+                            translationManager.showTranslatedToast(finalMessage);
                             exitToMain();
                         });
                     }
