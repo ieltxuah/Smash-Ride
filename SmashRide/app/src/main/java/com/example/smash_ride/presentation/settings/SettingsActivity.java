@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.settings;
+package com.example.smash_ride.presentation.settings;
 
 import android.content.Intent;
 import android.graphics.PorterDuff;
@@ -28,10 +28,10 @@ import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.LocalDatabaseHelper;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.auth.AuthManager;
-import com.example.smash_ride.features.main.MainActivity;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.data.repository.AuthManager;
+import com.example.smash_ride.presentation.main.MainActivity;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;

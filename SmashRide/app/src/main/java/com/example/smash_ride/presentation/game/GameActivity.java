@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 import static java.util.Collections.shuffle;
 
@@ -18,13 +18,13 @@ import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
-import com.example.smash_ride.data.firebase.FirebaseManager;
-import com.example.smash_ride.data.firebase.FirestoreRankingManager;
+import com.example.smash_ride.data.remote.FirebaseManager;
+import com.example.smash_ride.data.remote.FirestoreRankingManager;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.game.online.OnlineMatchmaker;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.framework.matchmaking.OnlineMatchmaker;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;

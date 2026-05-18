@@ -1,4 +1,4 @@
-package com.example.smash_ride.notifications;
+package com.example.smash_ride.framework.notifications;
 
 import android.Manifest;
 import android.app.PendingIntent;
@@ -15,7 +15,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
-import com.example.smash_ride.features.main.MainActivity;
+import com.example.smash_ride.presentation.main.MainActivity;
 import com.example.smash_ride.MyApplication;
 import com.example.smash_ride.R;
 

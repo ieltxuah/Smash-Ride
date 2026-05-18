@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 /**
  * Interfaz para escuchar el evento de fin de partida.

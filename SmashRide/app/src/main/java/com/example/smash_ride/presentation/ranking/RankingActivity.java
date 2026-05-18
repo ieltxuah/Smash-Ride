@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.ranking;
+package com.example.smash_ride.presentation.ranking;
 
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -18,8 +18,8 @@ import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.LocalDatabaseHelper;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.util.ArrayList;

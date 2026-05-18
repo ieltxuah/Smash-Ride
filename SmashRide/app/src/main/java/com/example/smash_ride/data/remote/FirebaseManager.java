@@ -1,4 +1,4 @@
-package com.example.smash_ride.data.firebase;
+package com.example.smash_ride.data.remote;
 
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;

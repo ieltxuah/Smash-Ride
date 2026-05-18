@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -26,8 +26,8 @@ import androidx.core.content.res.ResourcesCompat;
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;

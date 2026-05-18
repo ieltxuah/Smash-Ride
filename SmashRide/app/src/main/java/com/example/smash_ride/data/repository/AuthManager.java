@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.auth;
+package com.example.smash_ride.data.repository;
 
 import com.example.smash_ride.data.local.PreferenceHelper;
 import com.google.firebase.auth.AuthCredential;

@@ -1,4 +1,4 @@
-package com.example.smash_ride.translation;
+package com.example.smash_ride.framework.translation;
 
 import android.content.Context;
 import android.content.res.Configuration;

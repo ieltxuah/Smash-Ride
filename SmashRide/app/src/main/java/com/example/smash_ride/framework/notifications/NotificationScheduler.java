@@ -1,4 +1,4 @@
-package com.example.smash_ride.notifications;
+package com.example.smash_ride.framework.notifications;
 
 import android.Manifest;
 import android.app.Activity;

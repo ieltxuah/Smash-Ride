@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,15 +11,15 @@ import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.main.MainActivity;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.presentation.main.MainActivity;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 
 /**
- * Actividad que se muestra cuando el jugador gana una partida en modo vidas.
- * Presenta una pantalla de celebración y permite regresar al menú principal.
+ * Actividad que se muestra cuando el jugador pierde todas sus vidas en una partida.
+ * Presenta una pantalla de derrota y ofrece la opción de volver al menú principal.
  */
-public class WinActivity extends BaseActivity {
+public class LoseActivity extends BaseActivity {
 
     private TranslationManager translationManager;
     private String currentLang;
@@ -32,13 +32,11 @@ public class WinActivity extends BaseActivity {
         LocaleUtils.applyAppLocale(this, currentLang);
 
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_win);
+        setContentView(R.layout.activity_lose);
 
-        // 2. Gestión de Fondo Jerárquico (GIF -> Estático -> Negro)
+        // 2. Fondo Jerárquico (GIF -> Estático -> Negro)
         ImageView gifBg = findViewById(R.id.background_gif);
-
         if (gifBg != null) {
-            // GifHardwareDecoder ya gestiona poner GONE el gifBg si falla o no es compatible
             GifHardwareDecoder.loadGif(this, gifBg, R.raw.background_stars);
         }
 
@@ -47,11 +45,11 @@ public class WinActivity extends BaseActivity {
         translationManager.bindActivity(this);
         initTranslation();
 
-        // 4. Configurar Botón
+        // 4. Configurar Botón Volver
         Button back = findViewById(R.id.back_menu);
         back.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
             finish();
         });

@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 import android.content.Context;
 import android.graphics.Bitmap;

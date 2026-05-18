@@ -1,8 +1,7 @@
-package com.example.smash_ride.features.game;
+package com.example.smash_ride.presentation.game;
 
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,16 +12,15 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.res.ResourcesCompat;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.main.MainActivity;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.presentation.main.MainActivity;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 
 import java.util.ArrayList;
 import java.util.Collections;

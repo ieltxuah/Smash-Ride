@@ -1,4 +1,4 @@
-package com.example.smash_ride.features.main;
+package com.example.smash_ride.presentation.main;
 
 import android.content.Intent;
 import android.graphics.Color;
@@ -6,11 +6,9 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.TextView;
+
 import androidx.appcompat.app.AlertDialog;
 
 import com.example.smash_ride.R;
@@ -20,12 +18,12 @@ import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.graphics.SpriteColorizer;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.PreferenceHelper;
-import com.example.smash_ride.features.ranking.RankingActivity;
-import com.example.smash_ride.notifications.NotificationScheduler;
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
-import com.example.smash_ride.features.settings.SettingsActivity;
-import com.example.smash_ride.features.game.GameActivity;
+import com.example.smash_ride.presentation.ranking.RankingActivity;
+import com.example.smash_ride.framework.notifications.NotificationScheduler;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
+import com.example.smash_ride.presentation.settings.SettingsActivity;
+import com.example.smash_ride.presentation.game.GameActivity;
 
 /**
  * Actividad principal que sirve como menú de inicio del juego.

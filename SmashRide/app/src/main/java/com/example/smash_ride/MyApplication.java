@@ -6,8 +6,8 @@ import android.app.NotificationManager;
 import android.content.SharedPreferences;
 import android.os.Build;
 
-import com.example.smash_ride.translation.LocaleUtils;
-import com.example.smash_ride.translation.TranslationManager;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
 
 /**
  * Clase de aplicación principal que inicializa configuraciones globales.

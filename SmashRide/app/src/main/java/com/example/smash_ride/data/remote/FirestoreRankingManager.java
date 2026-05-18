@@ -1,4 +1,4 @@
-package com.example.smash_ride.data.firebase;
+package com.example.smash_ride.data.remote;
 
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;

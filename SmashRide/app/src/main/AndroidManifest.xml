@@ -29,30 +29,30 @@
         android:theme="@style/Theme.SmashRide"
         tools:ignore="LockedOrientationActivity">
         <activity
-            android:name=".features.ranking.RankingActivity"
+            android:name=".presentation.ranking.RankingActivity"
             android:exported="false" />
         <activity
-            android:name=".features.settings.SettingsActivity"
+            android:name=".presentation.settings.SettingsActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
-            android:name=".features.game.RankingGameActivity"
+            android:name=".presentation.game.RankingGameActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
-            android:name=".features.game.LoseActivity"
+            android:name=".presentation.game.LoseActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
-            android:name=".features.game.WinActivity"
+            android:name=".presentation.game.WinActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
-            android:name=".features.main.MainActivity"
+            android:name=".presentation.main.MainActivity"
             android:configChanges="orientation|screenSize"
             android:exported="true"
             android:screenOrientation="portrait">
@@ -63,7 +63,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".features.game.GameActivity"
+            android:name=".presentation.game.GameActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:screenOrientation="portrait"
             tools:ignore="LockedOrientationActivity" />
