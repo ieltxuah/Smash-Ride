@@ -125,16 +125,16 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                     @Override
                     public void onError(String error) {
                         handler.post(() -> {
-                            String finalMessage;
-                            if ("ERROR_MATCHMAKING_TIMEOUT".equals(error)) {
-                                finalMessage = getString(R.string.error_matchmaking_timeout);
-                            } else {
-                                finalMessage = error;
-                            }
-
-                            // 2. Mostrar el diálogo estético (que traduce internamente)
-                            translationManager.showTranslatedToast(finalMessage);
+                            Toast.makeText(GameActivity.this, error, Toast.LENGTH_LONG).show();
                             exitToMain();
+                        });
+                    }
+
+                    @Override
+                    public void onFallbackOffline() {
+                        handler.post(() -> {
+                            offlineMode = true;
+                            initializePlayersOffline();
                         });
                     }
                 }, prefHelper);
@@ -223,11 +223,19 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                 int[][] states = getInitialStates();
                 for (int i = 0; i < 4; i++) {
                     if (isCancelled || Thread.currentThread().isInterrupted()) return;
-                    String pName = (i == 0) ? prefHelper.getUserName() : "Bot " + i;
-                    Player p = new Player(pName, states[i][0], states[i][1], states[i][2], 0, i);
                     int pColor = (i == 0) ? this.color : availableColors.get(i - 1);
-                    p.setAppearance(this, pColor);
-                    players.add(p);
+
+                    if (i == 0) {
+                        // Human player
+                        Player p = new Player(prefHelper.getUserName(), states[i][0], states[i][1], states[i][2], 0, i);
+                        p.setAppearance(this, pColor);
+                        players.add(p);
+                    } else {
+                        // NPC bot
+                        NpcPlayer npc = new NpcPlayer("Bot " + i, states[i][0], states[i][1], states[i][2], i);
+                        npc.setAppearance(this, pColor);
+                        players.add(npc);
+                    }
                 }
 
                 if (!isCancelled) handler.post(this::finishLoading);

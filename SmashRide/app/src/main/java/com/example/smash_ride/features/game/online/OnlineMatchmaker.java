@@ -21,6 +21,7 @@ public class OnlineMatchmaker {
     public interface OnMatchFoundListener {
         void onMatchReady(String roomId, int mySlot);
         void onError(String error);
+        void onFallbackOffline();
     }
 
     private static final long TIMEOUT_MS = 120000; // 2 minutos
@@ -33,7 +34,7 @@ public class OnlineMatchmaker {
         // --- TIMEOUT DE SEGURIDAD ---
         timeoutRunnable = () -> {
             cleanUp(null, null);
-            listener.onError("ERROR_MATCHMAKING_TIMEOUT");
+            listener.onFallbackOffline();
         };
         timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
 

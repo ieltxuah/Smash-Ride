@@ -266,7 +266,11 @@ public class GameView extends SurfaceView implements Runnable {
             // --- ROL MAESTRO ---
             for (Player p : players) {
                 if (p.isDestroyed()) continue;
-                p.update(); // Física local
+                if (p instanceof NpcPlayer) {
+                    ((NpcPlayer) p).updateAI(players, centerX, centerY, radius);
+                } else {
+                    p.update();
+                }
                 checkCollision(p);
             }
 
