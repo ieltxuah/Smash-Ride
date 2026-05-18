@@ -10,7 +10,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -35,6 +34,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Actividad principal que orquesta el flujo de una partida de juego.
+ * Gestiona el ciclo de vida del juego, el emparejamiento en línea (matchmaking),
+ * la inicialización de los jugadores (locales o remotos) y la persistencia de resultados.
+ */
 public class GameActivity extends BaseActivity implements GameOverListener {
 
     private GameView gameView;
@@ -47,22 +51,23 @@ public class GameActivity extends BaseActivity implements GameOverListener {
     private boolean offlineMode = true;
     private boolean isGameRunning = false;
 
-    // Variables Online
+    // --- Variables de Conectividad Online ---
     private String roomId;
     private int mySlot = -1;
     private OnlineMatchmaker matchmaker;
 
-    // Variables Cancelación
+    // --- Gestión de Carga y Cancelación ---
     private Thread loadingThread;
     private volatile boolean isCancelled = false;
 
-    // Traducción y Preferencias
+    // --- Traducción y Preferencias ---
     private TranslationManager translationManager;
     private String currentLang;
     private PreferenceHelper prefHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Asegurar que la pantalla no se apague durante la partida
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefHelper = new PreferenceHelper(this);
         currentLang = prefHelper.getLanguage();
@@ -107,6 +112,83 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         initTranslation();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SoundManager.getInstance().resumeMusic();
+        if (gameView != null) gameView.resume();
+    }
+
+    @Override
+    protected void onPause() {
+        SoundManager.getInstance().pauseMusic();
+        // Si el usuario sale de la app durante una partida online, notificamos la salida
+        if (!offlineMode && gameView != null && roomId != null) {
+            FirebaseManager.getInstance().getRoomsRef()
+                    .child(roomId).child("players")
+                    .child(prefHelper.getUserId()).removeValue();
+        }
+        if (gameView != null) {
+            gameView.pause();
+        }
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        // Si la partida está activa y la app se detiene, salimos al menú
+        if (isGameRunning) {
+            exitToMain();
+        }
+        super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        isCancelled = true;
+        if (!offlineMode && roomId != null) {
+            // Borramos rastro
+            FirebaseManager.getInstance().getRoomsRef().child(roomId).child("players")
+                    .child(prefHelper.getUserId()).removeValue();
+
+            // Si somos el maestro, cerramos la sala en el matchmaking por si acaso
+            String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
+            FirebaseManager.getInstance().getMatchmakingRef().child(modeKey).child("current_room")
+                    .addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(@NonNull DataSnapshot s) {
+                            if (roomId.equals(s.getValue(String.class))) s.getRef().removeValue();
+                        }
+                        @Override public void onCancelled(@NonNull DatabaseError e) {}
+                    });
+        }
+        if (matchmaker != null) matchmaker.cleanUp(roomId, prefHelper.getUserId());
+        if (loadingThread != null && loadingThread.isAlive()) loadingThread.interrupt();
+        if (translationManager != null) translationManager.unbindActivity();
+        if (handler != null) handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        // Se ejecuta cuando el usuario pulsa HOME
+        if (!offlineMode && gameView != null && roomId != null) {
+            // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
+            // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
+            FirebaseManager.getInstance().getRoomsRef()
+                    .child(roomId).child("players")
+                    .child(prefHelper.getUserId()).removeValue();
+        }
+        SoundManager.getInstance().pauseMusic();
+        exitToMain();
+        super.onUserLeaveHint();
+    }
+
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Inicia el proceso de emparejamiento online con Firebase.
+     */
     private void startOnlineMatchmaking() {
         loadingLayout.setVisibility(View.VISIBLE);
         matchmaker = new OnlineMatchmaker();
@@ -140,6 +222,9 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                 }, prefHelper);
     }
 
+    /**
+     * Descarga y valida los jugadores de la sala online antes de iniciar la partida.
+     */
     private void setupOnlinePlayers() {
         Log.d("MATCH_DEBUG", "setupOnlinePlayers: Validando slots únicos...");
         calculateScreenMetrics();
@@ -188,26 +273,13 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
                 });
     }
-    private int getColorHexByTag(String tag) {
-        for (int i = 0; i < AppConstants.CAROUSEL_COLORS.length; i++) {
-            if (AppConstants.CAROUSEL_COLORS[i].equalsIgnoreCase(tag)) {
-                return AppConstants.CAROUSEL_HEX[i];
-            }
-        }
-        return AppConstants.CAROUSEL_HEX[0];
-    }
 
-    private int getNextAvailableColor(List<Integer> used) {
-        for (int hex : AppConstants.CAROUSEL_HEX) {
-            if (!used.contains(hex)) return hex;
-        }
-        return 0xFFFFFFFF;
-    }
-
+    /**
+     * Configura la partida local con bots.
+     */
     private void initializePlayersOffline() {
         isCancelled = false;
         players.clear();
-
         loadingThread = new Thread(() -> {
             try {
                 calculateScreenMetrics();
@@ -229,7 +301,6 @@ public class GameActivity extends BaseActivity implements GameOverListener {
                     p.setAppearance(this, pColor);
                     players.add(p);
                 }
-
                 if (!isCancelled) handler.post(this::finishLoading);
             } catch (Exception e) {
                 handler.post(this::exitToMain);
@@ -238,29 +309,15 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         loadingThread.start();
     }
 
-    private void calculateScreenMetrics() {
-        centerX = getResources().getDisplayMetrics().widthPixels / 2f;
-        centerY = getResources().getDisplayMetrics().heightPixels / 2f;
-        radius = 400f;
-    }
-
-    private int[][] getInitialStates() {
-        return new int[][]{
-            {(int) centerX, (int) (centerY - 400), 90},  // Norte (Slot 0)
-            {(int) centerX, (int) (centerY + 400), 270}, // Sur (Slot 1)
-            {(int) (centerX + 400), (int) centerY, 180}, // Este (Slot 2)
-            {(int) (centerX - 400), (int) centerY, 0}    // Oeste (Slot 3)
-        };
-    }
-
+    /**
+     * Finaliza la fase de carga y establece la vista del juego activa.
+     */
     private void finishLoading() {
         if (isFinishing() || isCancelled) return;
         if (players.size() < 4) return;
 
         // --- LÍNEA VITAL: Detener el matchmaker y sus timers ---
-        if (matchmaker != null) {
-            matchmaker.cancelTimeout(); // Necesitas crear este método o llamar a cleanup sin borrar
-        }
+        if (matchmaker != null) matchmaker.cancelTimeout();
 
         if (!offlineMode && mySlot == 0) {
             String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
@@ -302,39 +359,20 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         }
     }
 
-    private void exitToMain() {
-        isCancelled = true;
-        if (matchmaker != null) matchmaker.cleanUp(roomId, prefHelper.getUserId());
-        if (loadingThread != null) loadingThread.interrupt();
-        handler.removeCallbacksAndMessages(null);
-        finish();
-    }
 
-    private void initTranslation() {
-        translationManager.setTargetFromAppLang(currentLang);
-        View root = findViewById(android.R.id.content);
-        translationManager.scanAndRegisterViews(root);
+    // --- EVENTOS DE JUEGO ---
 
-        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
-            translationManager.reloadTextsFromResources();
-        } else {
-            translationManager.translateIfNeeded();
-        }
-    }
-
-    private void setupBackPressBlocker() {
-        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                // Bloqueado durante el juego
-            }
-        };
-        getOnBackPressedDispatcher().addCallback(this, callback);
-    }
-
+    /**
+     * Llamado cuando la partida termina.
+     * - Pausa la vista del juego y evita reentradas.
+     * - Extrae los datos del jugador local.
+     * - Actualiza estadísticas en Firestore.
+     * - Redirige a la pantalla de victoria/derrota o al ranking según el modo.
+     */
     @Override
     public void onGameOver() {
-        if (!isGameRunning) return;    isGameRunning = false;
+        if (!isGameRunning) return;
+        isGameRunning = false;
         if (gameView != null) gameView.pause();
 
         // 1. Extraer datos del jugador LOCAL
@@ -401,90 +439,90 @@ public class GameActivity extends BaseActivity implements GameOverListener {
         finish();
     }
 
+    // --- UTILIDADES ---
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        SoundManager.getInstance().resumeMusic();
-        if (gameView != null) gameView.resume();
+    /**
+     * Obtiene el color hexadecimal asociado a una etiqueta del carrusel.
+     *
+     * @param tag etiqueta del color (ej.: "red", "blue")
+     * @return valor hexadecimal del color correspondiente; si no se encuentra, devuelve el primer color del carrusel.
+     */
+    private int getColorHexByTag(String tag) {
+        for (int i = 0; i < AppConstants.CAROUSEL_COLORS.length; i++) {
+            if (AppConstants.CAROUSEL_COLORS[i].equalsIgnoreCase(tag)) {
+                return AppConstants.CAROUSEL_HEX[i];
+            }
+        }
+        return AppConstants.CAROUSEL_HEX[0];
     }
 
-    @Override
-    protected void onUserLeaveHint() {
-        // Se ejecuta cuando el usuario pulsa HOME
-        if (!offlineMode && gameView != null && roomId != null) {
-            // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
-            // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
-            FirebaseManager.getInstance().getRoomsRef()
-                    .child(roomId).child("players")
-                    .child(prefHelper.getUserId()).removeValue();
-        }
-        SoundManager.getInstance().pauseMusic();
-        exitToMain();
-        super.onUserLeaveHint();
+    /**
+     * Calcula métricas de pantalla necesarias para posicionamiento inicial.
+     * - centerX / centerY: centro de la pantalla.
+     * - radius: radio por defecto usado para posicionamiento.
+     */
+    private void calculateScreenMetrics() {
+        centerX = getResources().getDisplayMetrics().widthPixels / 2f;
+        centerY = getResources().getDisplayMetrics().heightPixels / 2f;
+        radius = 400f;
     }
 
-    @Override
-    protected void onPause() {
-        SoundManager.getInstance().pauseMusic();
-        // Si el usuario le da a HOME, marcamos sus vidas como 0 en Firebase antes de salir
-        if (!offlineMode && gameView != null && roomId != null) {
-            // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
-            // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
-            FirebaseManager.getInstance().getRoomsRef()
-                    .child(roomId).child("players")
-                    .child(prefHelper.getUserId()).removeValue();
-        }
-        if (gameView != null) {
-            gameView.pause();
-        }
-        super.onPause();
+    /**
+     * Obtiene los estados/posiciones angulares iniciales para los 4 slots de jugador.
+     *
+     * @return matriz 4x3 con [x, y, rotation] para los slots 0..3 en orden (Norte, Sur, Este, Oeste).
+     */
+    private int[][] getInitialStates() {
+        return new int[][]{
+            {(int) centerX, (int) (centerY - 400), 90},  // Norte (Slot 0)
+            {(int) centerX, (int) (centerY + 400), 270}, // Sur (Slot 1)
+            {(int) (centerX + 400), (int) centerY, 180}, // Este (Slot 2)
+            {(int) (centerX - 400), (int) centerY, 0}    // Oeste (Slot 3)
+        };
     }
 
-    @Override
-    protected void onStop() {
-        SoundManager.getInstance().pauseMusic();
-        // Si el usuario le da a HOME, marcamos sus vidas como 0 en Firebase antes de salir
-        if (!offlineMode && gameView != null && roomId != null) {
-            // En lugar de solo poner vidas a 0, vamos a eliminar el nodo para
-            // forzar que los demás detecten que ya no estamos en la lista de jugadores activos
-            FirebaseManager.getInstance().getRoomsRef()
-                    .child(roomId).child("players")
-                    .child(prefHelper.getUserId()).removeValue();
-        }
-        if (gameView != null) {
-            gameView.pause();
-        }
-        // Si el juego está en marcha y no ha terminado por victoria/derrota
-        if (isGameRunning) {
-            exitToMain();
-        }
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
+    /**
+     * Cancela operaciones pendientes relacionadas con matchmaking y carga, y cierra la Activity.
+     * - Marca la carga como cancelada.
+     * - Limpia el matchmaker de Firebase.
+     * - Interrumpe el thread de carga si está activo.
+     * - Elimina callbacks pendientes del handler.
+     * - Finaliza la Activity.
+     */
+    private void exitToMain() {
         isCancelled = true;
-        if (!offlineMode && roomId != null) {
-            // Borramos rastro
-            FirebaseManager.getInstance().getRoomsRef().child(roomId).child("players")
-                    .child(prefHelper.getUserId()).removeValue();
-
-            // Si somos el maestro, cerramos la sala en el matchmaking por si acaso
-            String modeKey = (selectedMode == GameView.GameMode.TIMER) ? "TIMER" : "LIVES";
-            FirebaseManager.getInstance().getMatchmakingRef().child(modeKey).child("current_room")
-                    .addListenerForSingleValueEvent(new ValueEventListener() {
-                        @Override
-                        public void onDataChange(@NonNull DataSnapshot s) {
-                            if (roomId.equals(s.getValue(String.class))) s.getRef().removeValue();
-                        }
-                        @Override public void onCancelled(@NonNull DatabaseError e) {}
-                    });
-        }
         if (matchmaker != null) matchmaker.cleanUp(roomId, prefHelper.getUserId());
-        if (loadingThread != null && loadingThread.isAlive()) loadingThread.interrupt();
-        if (translationManager != null) translationManager.unbindActivity();
-        if (handler != null) handler.removeCallbacksAndMessages(null);
-        super.onDestroy();
+        if (loadingThread != null) loadingThread.interrupt();
+        handler.removeCallbacksAndMessages(null);
+        finish();
+    }
+
+    /**
+     * Inicializa el sistema de traducción para la Activity:
+     * - Establece el idioma objetivo.
+     * - Registra vistas del layout para traducción dinámica.
+     * - Si el idioma es nativo, recarga textos desde recursos; en caso contrario, traduce según sea necesario.
+     */
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
+        }
+    }
+
+    /** Evita que el botón "Atrás" haga efecto durante la partida. */
+    private void setupBackPressBlocker() {
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Bloqueado durante el juego
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, callback);
     }
 }

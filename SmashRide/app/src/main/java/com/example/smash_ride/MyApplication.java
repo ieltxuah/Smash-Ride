@@ -9,6 +9,9 @@ import android.os.Build;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 
+/**
+ * Clase de aplicación principal que inicializa configuraciones globales.
+ */
 public class MyApplication extends Application {
     public static final String CHANNEL_ID = "reminder_channel";
     private static final String PREFS_SETTINGS = "app_settings";
@@ -19,15 +22,18 @@ public class MyApplication extends Application {
         super.onCreate();
         createNotificationChannel();
 
-        // Apply saved locale app-wide before any Activity is created
+        // Aplicar el idioma guardado antes de que se creen las actividades
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, MODE_PRIVATE);
         String lang = prefs.getString(KEY_LANG, "en");
         LocaleUtils.applyAppLocale(getApplicationContext(), lang);
 
-        // Initialize TranslationManager singleton app-wide
+        // Inicializar el gestor de traducciones para toda la aplicación
         TranslationManager.initialize(getApplicationContext());
     }
 
+    /**
+     * Crea el canal de notificaciones requerido para Android 8.0 (API 26) o superior.
+     */
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "Recordatorio de juego";

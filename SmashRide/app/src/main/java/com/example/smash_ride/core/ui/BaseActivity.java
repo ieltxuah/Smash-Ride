@@ -7,18 +7,25 @@ import android.os.Build;
 import androidx.appcompat.app.AppCompatActivity;
 
 /**
- * Clase base para todas las actividades que requieran modo inmersivo.
+ * Clase base para todas las actividades de la aplicación.
+ * Proporciona una implementación centralizada del modo inmersivo para ocultar
+ * las barras del sistema y maximizar el área de juego.
  */
 public abstract class BaseActivity extends AppCompatActivity {
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        // Volver a aplicar el modo inmersivo cuando la ventana recupera el foco
         if (hasFocus) {
             applyImmersiveMode();
         }
     }
 
+    /**
+     * Aplica el modo inmersivo (pantalla completa) ocultando las barras de estado
+     * y de navegación. Se adapta según la versión de la API de Android.
+     */
     protected void applyImmersiveMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Lógica para Android 11 (API 30) o superior

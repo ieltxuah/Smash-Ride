@@ -4,27 +4,39 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 
+/**
+ * Representa un joystick virtual para el control del movimiento del jugador.
+ * Gestiona la lógica de detección de toques y el cálculo de ángulo y velocidad.
+ */
 public class Joystick {
     private float controlX, controlY;
     private float joystickX, joystickY;
     private boolean isActive;
     private static final int CROSSHAIR_RADIUS = 100;
+    private int themeColor = Color.RED;
 
-    // Nueva variable para el color seleccionado por el usuario
-    private int themeColor = Color.RED; // Rojo por defecto
-
+    /**
+     * Constructor del Joystick.
+     */
     public Joystick() {
         this.isActive = false;
     }
 
     /**
-     * Permite cambiar el color del mando móvil del joystick
-     * @param color Color en formato hexadecimal (int)
+     * Cambia el color del mando móvil del joystick.
+     *
+     * @param color Color en formato hexadecimal.
      */
     public void setThemeColor(int color) {
         this.themeColor = color;
     }
 
+    /**
+     * Se llama cuando el usuario toca la pantalla para posicionar el joystick.
+     *
+     * @param x Coordenada X del toque.
+     * @param y Coordenada Y del toque.
+     */
     public void touchDown(float x, float y) {
         controlX = x;
         controlY = y;
@@ -33,6 +45,13 @@ public class Joystick {
         isActive = true;
     }
 
+    /**
+     * Actualiza la posición del mando móvil mientras el usuario arrastra el dedo.
+     * Limita el movimiento dentro del radio máximo permitido.
+     *
+     * @param x Nueva coordenada X del toque.
+     * @param y Nueva coordenada Y del toque.
+     */
     public void touchMove(float x, float y) {
         if (isActive) {
             float deltaX = x - controlX;
@@ -50,12 +69,21 @@ public class Joystick {
         }
     }
 
+    /**
+     * Restablece el estado del joystick cuando el usuario levanta el dedo.
+     */
     public void touchUp() {
         isActive = false;
         joystickX = controlX;
         joystickY = controlY;
     }
 
+    /**
+     * Calcula la velocidad basada en la distancia del mando respecto al centro.
+     *
+     * @param player El jugador al que afecta el control.
+     * @return Valor de velocidad entre 0 y 10.
+     */
     public float getSpeed(Player player) {
         if (player == null || player.isDestroyed()) return 0;
 
@@ -67,6 +95,12 @@ public class Joystick {
         return Math.min(speed, 10);
     }
 
+    /**
+     * Calcula el ángulo de dirección en grados.
+     *
+     * @param player El jugador al que afecta el control.
+     * @return Ángulo en grados.
+     */
     public float getAngle(Player player) {
         // 1. Si el jugador está bloqueado por colisión o el joystick NO está siendo tocado
         if (player.isColliding() || !isActive) {
@@ -83,12 +117,14 @@ public class Joystick {
         }
 
         // 3. Solo si hay movimiento real calculamos el nuevo ángulo
-        return (float) Math.toDegrees(Math.atan2(deltaY, deltaX));    }
-
-    public boolean isActive() {
-        return isActive;
+        return (float) Math.toDegrees(Math.atan2(deltaY, deltaX));
     }
 
+    /**
+     * Dibuja los componentes visuales del joystick en el lienzo.
+     *
+     * @param canvas Lienzo donde realizar el dibujo.
+     */
     public void draw(Canvas canvas) {
         if (isActive) {
             // 1. DIBUJO DEL CÍRCULO EXTERIOR (Base estática)
@@ -108,13 +144,5 @@ public class Joystick {
             // Dibujamos el mando con radio 35 (ligeramente más grande que antes para mejor UX)
             canvas.drawCircle(joystickX, joystickY, 35, innerPaint);
         }
-    }
-
-    // El método createPaint original ya no es necesario ya que instanciamos Paints con Anti-Alias,
-    // pero lo mantenemos para no romper posibles llamadas externas si existieran fuera de esta clase.
-    private Paint createPaint(int color) {
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setColor(color);
-        return paint;
     }
 }

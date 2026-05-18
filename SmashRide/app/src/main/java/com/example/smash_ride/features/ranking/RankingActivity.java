@@ -1,7 +1,6 @@
 package com.example.smash_ride.features.ranking;
 
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.Log;
@@ -14,10 +13,12 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.example.smash_ride.R;
+import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
 import com.example.smash_ride.core.ui.BaseActivity;
 import com.example.smash_ride.data.local.LocalDatabaseHelper;
 import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -26,6 +27,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Actividad que muestra la clasificación global y por modos de juego.
+ * Permite filtrar por diferentes criterios como bajas, vidas perdidas y golpes dados.
+ * Gestiona la sincronización entre Cloud Firestore y la base de datos local SQLite.
+ */
 public class RankingActivity extends BaseActivity {
     private LocalDatabaseHelper dbHelper;
     private PreferenceHelper prefHelper;
@@ -45,6 +51,7 @@ public class RankingActivity extends BaseActivity {
         View emptyView = findViewById(R.id.empty_view);
         listView.setEmptyView(emptyView);
 
+        // Configuración estética de fondo
         GifHardwareDecoder.loadGif(this, findViewById(R.id.background_gif), R.raw.background_stars);
 
         setupButtons();
@@ -52,11 +59,12 @@ public class RankingActivity extends BaseActivity {
         refreshUI(currentCriteria);
         syncFromFirestore();
 
+        // Inicializar el sistema de traducción dinámico
         TranslationManager.getInstance().bindActivity(this);
         TranslationManager.getInstance().scanAndRegisterViews(findViewById(android.R.id.content));
 
         // Si el idioma no es nativo (ML Kit), forzar traducción inicial
-        if (!isNativeLanguage(prefHelper.getLanguage())) {
+        if (!LocaleUtils.isNativeLanguage(prefHelper.getLanguage())) {
             TranslationManager.getInstance().translateIfNeeded();
         } else {
             TranslationManager.getInstance().reloadTextsFromResources();
@@ -65,10 +73,28 @@ public class RankingActivity extends BaseActivity {
         findViewById(R.id.back_menu).setOnClickListener(v -> finish());
     }
 
-    private boolean isNativeLanguage(String lang) {
-        return lang.equals("es") || lang.equals("eu") || lang.equals("en");
+    @Override protected void onResume() {
+        super.onResume();
+        SoundManager.getInstance().resumeMusic();
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SoundManager.getInstance().pauseMusic();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        TranslationManager.getInstance().unbindActivity();
+    }
+
+    // --- MÉTODOS DE CONFIGURACIÓN ---
+
+    /**
+     * Configura los listeners para los botones de filtrado de las pestañas de ranking.
+     */
     private void setupButtons() {
         // GLOBAL
         findViewById(R.id.btn_kills).setOnClickListener(v -> refreshUI("totalKills"));
@@ -90,6 +116,11 @@ public class RankingActivity extends BaseActivity {
         findViewById(R.id.btn_perfect).setOnClickListener(v -> refreshUI("perfectVictories"));
     }
 
+    // --- LÓGICA DE DATOS ---
+
+    /**
+     * Sincroniza la colección de rankings de Firestore y los guarda localmente.
+     */
     private void syncFromFirestore() {
         FirebaseFirestore.getInstance().collection("rankings").get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
@@ -117,11 +148,11 @@ public class RankingActivity extends BaseActivity {
         });
     }
 
-    private int safeLongToInt(QueryDocumentSnapshot doc, String field) {
-        Long val = doc.getLong(field);
-        return val != null ? val.intValue() : 0;
-    }
-
+    /**
+     * Actualiza la interfaz de usuario con los datos de ranking actuales filtrados.
+     *
+     * @param criteria Nombre de la columna por la cual realizar el filtrado.
+     */
     private void refreshUI(String criteria) {
         currentCriteria = criteria;
         updateTabStyles(criteria);
@@ -211,6 +242,11 @@ public class RankingActivity extends BaseActivity {
         listView.setAdapter(adapter);
     }
 
+    // --- MÉTODOS AUXILIARES ---
+
+    /**
+     * Mapea el criterio seleccionado con el valor correspondiente de la fila de ranking.
+     */
     private int getValueByCriteria(LocalDatabaseHelper.RankingRow item, String criteria) {
         switch (criteria) {
             case "totalKills": return item.totalKills;
@@ -228,6 +264,9 @@ public class RankingActivity extends BaseActivity {
         }
     }
 
+    /**
+     * Actualiza el estilo visual de los botones de filtrado para resaltar el seleccionado.
+     */
     private void updateTabStyles(String selectedCriteriaId) {
         ViewGroup container = findViewById(R.id.selector_container);
         for (int i = 0; i < container.getChildCount(); i++) {
@@ -265,6 +304,43 @@ public class RankingActivity extends BaseActivity {
         }
     }
 
+    /**
+     * Convierte de forma segura un valor Long recuperado de un documento Firestore a int.
+     * Si el campo no existe o es null, devuelve 0. Esto evita NPEs al convertir Long a int.
+     *
+     * @param doc Documento Firestore (QueryDocumentSnapshot) desde el cual se lee el campo.
+     * @param field Nombre del campo que contiene el valor Long.
+     * @return El valor entero convertido desde Long, o 0 si el campo es null.
+     */
+    private int safeLongToInt(QueryDocumentSnapshot doc, String field) {
+        Long val = doc.getLong(field);
+        return val != null ? val.intValue() : 0;
+    }
+
+    /**
+     * Genera y sube a Firestore 100 registros de ejemplo ("rankings") usando un WriteBatch.
+     *
+     * Cada documento tiene un userId con formato "GEN_XXX" (por ejemplo, "GEN_001") y un
+     * userName generado combinando prefijos y sufijos. Se rellenan campos de estadísticas con
+     * valores aleatorios coherentes para simular datos de juego.
+     *
+     * Notas importantes:
+     * Se usa com.google.firebase.firestore.FirebaseFirestore.getInstance() para obtener la instancia.
+     * Se prepara un WriteBatch y se añaden 100 operaciones batch.set().
+     * Firestore permite un máximo de 500 operaciones por batch; aquí generamos 100, por lo que está dentro del límite.
+     * Al finalizar se llama a batch.commit() y se adjuntan listeners para registrar éxito o fallo.
+     *
+     * Campos creados en cada documento:
+     * userId: Identificador generado (String).
+     * userName: Nombre de usuario generado (String), máximo 9 caracteres.
+     * totalKills: Entero aleatorio (int).
+     * totalHitsDealt: Entero calculado a partir de totalKills.
+     * totalLivesLost: Entero aleatorio (int).
+     * killsLivesMode, hitsLivesMode, livesLostLivesMode: Distribución de estadísticas por modo "Lives".
+     * killsTimerMode, hitsTimerMode, livesLostTimerMode: Distribución de estadísticas por modo "Timer".
+     * maxKillsInTimer: Máximo de kills en modo timer (int aleatorio).
+     * perfectVictories: Número de victorias perfectas (int aleatorio).
+     */
     private void generateDummyRankings() {
         com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
         com.google.firebase.firestore.WriteBatch batch = db.batch();

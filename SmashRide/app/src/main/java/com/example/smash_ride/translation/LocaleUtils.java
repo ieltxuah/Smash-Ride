@@ -2,9 +2,6 @@ package com.example.smash_ride.translation;
 
 import android.content.Context;
 import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.os.Build;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -14,10 +11,40 @@ import com.google.mlkit.nl.translate.TranslateLanguage;
 
 import java.util.Locale;
 
+/**
+ * Clase de utilidad para gestionar la localización (Locale) y el mapeo de idiomas.
+ * Proporciona métodos para aplicar cambios de idioma dinámicamente y obtener textos de vistas.
+ */
 public final class LocaleUtils {
     private static final String TAG = "LocaleUtils";
+
+    // Constructor privado para evitar instanciación
     private LocaleUtils() {}
 
+    /**
+     * Aplica el código de idioma especificado al contexto de la aplicación.
+     * Actualiza la configuración global de recursos para reflejar el nuevo idioma.
+     *
+     * @param context      Contexto sobre el que aplicar el cambio.
+     * @param languageCode Código ISO del idioma (ej: "es", "en", "eu").
+     * @return El contexto actualizado.
+     */
+    public static Context applyAppLocale(Context context, String languageCode) {
+        Locale locale = new Locale(languageCode);
+        Locale.setDefault(locale);
+        Configuration config = context.getResources().getConfiguration();
+        config.setLocale(locale);
+        context.getResources().updateConfiguration(config, context.getResources().getDisplayMetrics());
+        return context;
+    }
+
+    /**
+     * Mapea un código de idioma de la aplicación al identificador correspondiente de ML Kit.
+     * Los idiomas nativos (es, en, eu) devuelven null para indicar que deben usar recursos locales.
+     *
+     * @param abbrev Código de idioma de la aplicación.
+     * @return El identificador de idioma de {@link TranslateLanguage} o null si es nativo.
+     */
     public static String mapAppLangToMlKit(String abbrev) {
         if (abbrev == null) return null;
         switch (abbrev) {
@@ -32,38 +59,18 @@ public final class LocaleUtils {
         }
     }
 
-    public static Context applyAppLocale(Context context, String languageCode) {
-        Locale locale = new Locale(languageCode);
-        Locale.setDefault(locale);
-        Configuration config = context.getResources().getConfiguration();
-        config.setLocale(locale);
-        context.getResources().updateConfiguration(config, context.getResources().getDisplayMetrics());
-        return context;
+    /** Comprueba si el idioma tiene soporte nativo en los recursos XML. */
+    public static boolean isNativeLanguage(String lang) {
+        return lang.equals("es") || lang.equals("eu") || lang.equals("en");
     }
 
-    public static String getEnglishTextForView(Context ctx, View view) {
-        try {
-            int id = view.getId();
-            if (id == View.NO_ID) return getViewTextFallback(view);
-            Resources res = (ctx != null) ? ctx.getResources() : view.getContext().getResources();
-            String resName;
-            try { resName = res.getResourceEntryName(id); } catch (Exception e) { resName = null; }
-            int resId = 0;
-            if (resName != null) resId = res.getIdentifier(resName, "string", (ctx != null) ? ctx.getPackageName() : view.getContext().getPackageName());
-            if (resId != 0) {
-                Configuration conf = new Configuration(res.getConfiguration());
-                conf.setLocale(Locale.ENGLISH);
-                CharSequence cs = (ctx != null) ? ctx.createConfigurationContext(conf).getText(resId) : view.getContext().createConfigurationContext(conf).getText(resId);
-                return cs == null ? "" : cs.toString();
-            } else {
-                return "";
-            }
-        } catch (Exception e) {
-            Log.d(TAG, "getEnglishTextForView fallback: " + e.getMessage());
-            return "";
-        }
-    }
-
+    /**
+     * Intenta obtener el texto visible de una vista de interfaz de usuario de forma genérica.
+     * Soporta {@link TextView}, {@link Button} y {@link CompoundButton}.
+     *
+     * @param view La vista de la cual extraer el texto.
+     * @return El texto de la vista o una cadena vacía si no es compatible o es nulo.
+     */
     public static String getViewTextFallback(View view) {
         try {
             if (view instanceof TextView) {

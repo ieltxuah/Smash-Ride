@@ -4,11 +4,13 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
 import android.graphics.Rect;
 import com.example.smash_ride.R;
 
+/**
+ * Representa el área de juego física (la Luna).
+ * Se encarga de gestionar la animación rotativa del escenario mediante un Sprite Sheet.
+ */
 public class GameArea {
     private final float centerX, centerY, radius;
     private Bitmap spriteSheet;
@@ -24,12 +26,19 @@ public class GameArea {
 
     // Control de tiempo para la velocidad de rotación
     private long lastFrameTime = 0;
-    // Ajustado a 120ms para una rotación más lenta y natural
     private static final int FRAME_DURATION_MS = 120;
 
     private final Rect srcRect;
     private final Rect dstRect;
 
+    /**
+     * Constructor del área de juego.
+     *
+     * @param context Contexto para cargar recursos.
+     * @param centerX Coordenada X del centro de la pantalla.
+     * @param centerY Coordenada Y del centro de la pantalla.
+     * @param radius  Radio del área circular de juego.
+     */
     public GameArea(Context context, float centerX, float centerY, float radius) {
         this.centerX = centerX;
         this.centerY = centerY;
@@ -50,6 +59,12 @@ public class GameArea {
         );
     }
 
+    /**
+     * Dibuja el frame actual de la animación de la luna en el lienzo.
+     * Calcula automáticamente el siguiente frame basándose en el tiempo transcurrido.
+     *
+     * @param canvas Lienzo donde se realiza el dibujo.
+     */
     public void draw(Canvas canvas) {
         if (spriteSheet == null) return;
 

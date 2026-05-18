@@ -15,11 +15,9 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,10 +38,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthCredential;
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -51,34 +46,38 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Actividad de Ajustes de la aplicación.
+ * Permite gestionar el perfil del usuario (Google Sign-In), el idioma,
+ * el volumen del juego y la personalización estética del personaje.
+ */
 public class SettingsActivity extends BaseActivity {
+
+    private static final String TAG = "SettingsActivity";
+    private static final int RC_SIGN_IN = 9001;
 
     private TranslationManager translationManager;
     private PreferenceHelper prefHelper;
     private AuthManager authManager;
+    private LocalDatabaseHelper dbHelper;
+    private GoogleSignInClient mGoogleSignInClient;
+    private String lastGuestId;
 
     private Spinner langSpinner;
     private SeekBar musicSeekBar;
     private SeekBar effectsSeekBar;
     private RecyclerView carouselRv;
-
     private EditText userNameText;
     private TextView authStatusLabel;
     private Button loginLogoutButton;
     private Button deleteDataButton;
-    private EditText editUsernameInput;
     private Button migrateDataButton;
-    private String lastGuestId;
-    private View editNameContainer;
-
     private String[] labels;
+
     private String[] codes;
     private String selectedColorTag = "dorado";
     private String currentLang;
 
-    private LocalDatabaseHelper dbHelper;
-    private static final int RC_SIGN_IN = 9001;
-    private GoogleSignInClient mGoogleSignInClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +110,56 @@ public class SettingsActivity extends BaseActivity {
         initTranslation();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        SoundManager.getInstance().resumeMusic();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SoundManager.getInstance().pauseMusic();
+    }
+
+    @Override protected void onDestroy() {
+        super.onDestroy();
+        if (translationManager != null) translationManager.unbindActivity();
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                // Delegamos la validación de Firebase al AuthManager
+                authManager.signInWithGoogle(account.getIdToken(), new AuthManager.AuthCallback() {
+                    @Override
+                    public void onSuccess(FirebaseUser user) {
+                        setupUserSection();
+                        String rawWelcome = getString(R.string.welcome_msg, user.getDisplayName());
+                        translationManager.showTranslatedToast(rawWelcome);
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        String errorMsg = getString(R.string.error_auth_failed, error);
+                        translationManager.showTranslatedToast(errorMsg);
+                    }
+                });
+            } catch (ApiException e) {
+                Log.e(TAG, "Google sign in failed", e);
+            }
+        }
+    }
+
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Obtiene las referencias de los componentes de la interfaz y configura adaptadores básicos.
+     */
     private void initViews() {
         langSpinner = findViewById(R.id.settings_language_spinner);
         musicSeekBar = findViewById(R.id.settings_music_seekbar);
@@ -143,24 +192,40 @@ public class SettingsActivity extends BaseActivity {
         setupSeekBarListeners();
     }
 
+    /**
+     * Carga los valores actuales desde las preferencias locales a la interfaz de usuario.
+     */
+    private void loadSettings() {
+        for (int i = 0; i < codes.length; i++) {
+            if (codes[i].equals(currentLang)) {
+                langSpinner.setSelection(i);
+                break;
+            }
+        }
+        musicSeekBar.setProgress(prefHelper.getMusicVolume());
+        effectsSeekBar.setProgress(prefHelper.getEffectsVolume());
+        selectedColorTag = prefHelper.getCharacterColor();
+        SoundManager.getInstance().updateVolume(this);
+    }
+
+    /**
+     * Inicializa el sistema de traducción y gestiona la localización de textos dinámicos (hints).
+     */
     private void initTranslation() {
         // Configuramos el idioma destino en ML Kit
         translationManager.setTargetFromAppLang(currentLang);
-
-        // Obtenemos la vista raíz para asegurar que escanee TODO (títulos con ID incluidos)
-        View root = findViewById(android.R.id.content);
-        translationManager.scanAndRegisterViews(root);
+        translationManager.scanAndRegisterViews(findViewById(android.R.id.content));
 
         // El TranslationManager por defecto traduce el .getText()
         // Si quieres traducir el Hint manualmente en ML Kit:
-        if (userNameText != null && !(currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en"))) {
+        if (userNameText != null && !LocaleUtils.isNativeLanguage(currentLang)) {
             translationManager.translateRaw(getString(R.string.name_hint), translatedHint -> {
                 userNameText.setHint(translatedHint);
             });
         }
 
         // Lógica de traducción basada en el contexto del manager
-        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
             translationManager.reloadTextsFromResources();
             userNameText.setHint(R.string.name_hint);
         } else {
@@ -168,6 +233,9 @@ public class SettingsActivity extends BaseActivity {
         }
     }
 
+    /**
+     * Configura el cliente de inicio de sesión de Google.
+     */
     private void setupGoogleSDK() {
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
@@ -184,6 +252,9 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
+    /**
+     * Actualiza el estado visual de la sección de perfil según la sesión del usuario.
+     */
     private void setupUserSection() {
         String savedName = prefHelper.getUserName();
         ImageView editIcon = findViewById(R.id.edit_icon_hint);
@@ -235,65 +306,9 @@ public class SettingsActivity extends BaseActivity {
         userNameText.setText(savedName);
     }
 
-    private void signIn() {
-        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, RC_SIGN_IN);
-    }
-
-    private void signOut() {
-        authManager.logout(() -> {
-            mGoogleSignInClient.signOut().addOnCompleteListener(task -> {
-                // BUSCAR GUEST PREVIO EN DB LOCAL
-                String existingGuestId = dbHelper.getGuestId();
-
-                if (existingGuestId != null) {
-                    prefHelper.setUserId(existingGuestId);
-                    // Recuperar el nombre real de la DB para ese Guest
-                    String lastGuestName = dbHelper.getLocalUserName(existingGuestId);
-                    if (lastGuestName != null) {
-                        prefHelper.setUserName(lastGuestName);
-                    }
-                } else {
-                    prefHelper.setUserId(null);
-                    prefHelper.getOrCreateId();
-                    prefHelper.setUserName("STAR_USER");
-                }
-
-                setupUserSection();
-                translationManager.showTranslatedToast(getString(R.string.logout_msg));
-            });
-        });
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == RC_SIGN_IN) {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            try {
-                GoogleSignInAccount account = task.getResult(ApiException.class);
-                // Delegamos la validación de Firebase al AuthManager
-                authManager.signInWithGoogle(account.getIdToken(), new AuthManager.AuthCallback() {
-                    @Override
-                    public void onSuccess(FirebaseUser user) {
-                        setupUserSection();
-                        String rawWelcome = getString(R.string.welcome_msg, user.getDisplayName());
-                        translationManager.showTranslatedToast(rawWelcome);
-                    }
-
-                    @Override
-                    public void onError(String error) {
-                        String errorMsg = getString(R.string.error_auth_failed, error);
-                        translationManager.showTranslatedToast(errorMsg);
-                    }
-                });
-            } catch (ApiException e) {
-                Log.e("Settings", "Google sign in failed", e);
-            }
-        }
-    }
-
+    /**
+     * Define el comportamiento de los deslizadores para el control de volumen.
+     */
     private void setupSeekBarListeners() {
         musicSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean f) {
@@ -325,67 +340,9 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
-    private void saveAndExit() {
-        // Si estaba en modo editable, guardamos el texto actual
-        String newName = userNameText.getText().toString().trim();
-
-        if (newName.isEmpty()) {
-            translationManager.showTranslatedToast(getString(R.string.error_name_empty));
-            return;
-        }
-
-        // 1. Guardar en SharedPreferences para uso inmediato
-        prefHelper.setUserName(newName);
-
-        // 2. Guardar en SQLite (LocalDatabaseHelper)
-        String currentId = prefHelper.getUserId();
-        boolean isLoggedIn = authManager.isLoggedIn();
-        dbHelper.saveLocalUser(currentId, newName, !isLoggedIn);
-        dbHelper.updateRankingName(currentId, newName);
-
-        // 3. Sincronización con Firestore (Nube)
-        // Usamos SET con MERGE para evitar el error "NOT_FOUND"
-        Map<String, Object> userData = new HashMap<>();
-        userData.put("userId", currentId);
-        userData.put("userName", newName);
-
-        FirebaseFirestore.getInstance().collection("rankings").document(currentId)
-                .set(userData, com.google.firebase.firestore.SetOptions.merge())
-                .addOnSuccessListener(aVoid -> Log.d("Settings_Save", "Firestore sincronizado con éxito"))
-                .addOnFailureListener(e -> Log.e("Settings_Save", "Error al sincronizar Firestore", e));
-
-        // 4. Guardar otros ajustes y salir
-        String selLang = codes[langSpinner.getSelectedItemPosition()];
-        prefHelper.setLanguage(selLang);
-        prefHelper.setMusicVolume(musicSeekBar.getProgress());
-        prefHelper.setEffectsVolume(effectsSeekBar.getProgress());
-        prefHelper.setCharacterColor(selectedColorTag);
-
-        // Asegurar que el SoundManager guarde el volumen final
-        SoundManager.getInstance().updateVolume(this);
-
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
-
-        // UX: Evitar pantallazo blanco (Transición instantánea)
-        overridePendingTransition(0, 0);
-        finish();
-    }
-
-    private void loadSettings() {
-        for (int i = 0; i < codes.length; i++) {
-            if (codes[i].equals(currentLang)) {
-                langSpinner.setSelection(i);
-                break;
-            }
-        }
-        musicSeekBar.setProgress(prefHelper.getMusicVolume());
-        effectsSeekBar.setProgress(prefHelper.getEffectsVolume());
-        selectedColorTag = prefHelper.getCharacterColor();
-        SoundManager.getInstance().updateVolume(this);
-    }
-
+    /**
+     * Configura el carrusel horizontal para la selección de color del personaje.
+     */
     private void setupColorCarousel() {
         carouselRv = findViewById(R.id.color_carousel_rv);
         if (carouselRv == null) return;
@@ -441,6 +398,96 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
+    // --- ACCIONES DE PERSISTENCIA Y NAVEGACIÓN ---
+
+    /**
+     * Almacena los cambios realizados en las preferencias y sincroniza con Firestore.
+     */
+    private void saveAndExit() {
+        // Si estaba en modo editable, guardamos el texto actual
+        String newName = userNameText.getText().toString().trim();
+
+        if (newName.isEmpty()) {
+            translationManager.showTranslatedToast(getString(R.string.error_name_empty));
+            return;
+        }
+
+        // 1. Guardar en SharedPreferences para uso inmediato
+        prefHelper.setUserName(newName);
+
+        // 2. Guardar en SQLite (LocalDatabaseHelper)
+        String currentId = prefHelper.getUserId();
+        boolean isLoggedIn = authManager.isLoggedIn();
+        dbHelper.saveLocalUser(currentId, newName, !isLoggedIn);
+        dbHelper.updateRankingName(currentId, newName);
+
+        // 3. Sincronización con Firestore (Nube)
+        // Usamos SET con MERGE para evitar el error "NOT_FOUND"
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("userId", currentId);
+        userData.put("userName", newName);
+
+        FirebaseFirestore.getInstance().collection("rankings").document(currentId)
+                .set(userData, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Firestore sincronizado con éxito"))
+                .addOnFailureListener(e -> Log.e(TAG, "Error al sincronizar Firestore", e));
+
+        // 4. Guardar otros ajustes y salir
+        String selLang = codes[langSpinner.getSelectedItemPosition()];
+        prefHelper.setLanguage(selLang);
+        prefHelper.setMusicVolume(musicSeekBar.getProgress());
+        prefHelper.setEffectsVolume(effectsSeekBar.getProgress());
+        prefHelper.setCharacterColor(selectedColorTag);
+
+        // Asegurar que el SoundManager guarde el volumen final
+        SoundManager.getInstance().updateVolume(this);
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+
+        // UX: Evitar pantallazo blanco (Transición instantánea)
+        overridePendingTransition(0, 0);
+        finish();
+    }
+
+    /** Inicia el flujo de autenticación de Google. */
+    private void signIn() {
+        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+        startActivityForResult(signInIntent, RC_SIGN_IN);
+    }
+
+    /** Cierra la sesión de Firebase y Google, restaurando el ID de invitado si existe. */
+    private void signOut() {
+        authManager.logout(() -> {
+            mGoogleSignInClient.signOut().addOnCompleteListener(task -> {
+                // BUSCAR GUEST PREVIO EN DB LOCAL
+                String existingGuestId = dbHelper.getGuestId();
+
+                if (existingGuestId != null) {
+                    prefHelper.setUserId(existingGuestId);
+                    // Recuperar el nombre real de la DB para ese Guest
+                    String lastGuestName = dbHelper.getLocalUserName(existingGuestId);
+                    if (lastGuestName != null) {
+                        prefHelper.setUserName(lastGuestName);
+                    }
+                } else {
+                    prefHelper.setUserId(null);
+                    prefHelper.getOrCreateId();
+                    prefHelper.setUserName("STAR_USER");
+                }
+
+                setupUserSection();
+                translationManager.showTranslatedToast(getString(R.string.logout_msg));
+            });
+        });
+    }
+
+    // --- ACCIONES DE DATOS ---
+
+    /**
+     * Realiza la migración de datos acumulados como invitado a la cuenta registrada.
+     */
     private void migrateGuestData() {
         FirebaseUser user = authManager.getCurrentUser();
         // Validamos que estemos logueados y que realmente exista un Guest Id en la DB local
@@ -504,9 +551,10 @@ public class SettingsActivity extends BaseActivity {
                             translationManager.showTranslatedToast(getString(R.string.msg_migration_success));
                         });
             });
-        }).addOnFailureListener(e -> Log.e("Settings", "Migration failed", e));
+        }).addOnFailureListener(e -> Log.e(TAG, "Migration failed", e));
     }
 
+    /** Muestra diálogo de confirmación para migrar datos de invitado. */
     private void showMigrateConfirmation() {
         String title = getString(R.string.migrate_confirm_title);
         String msg = getString(R.string.migrate_confirm_msg);
@@ -526,6 +574,7 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
+    /** Muestra diálogo de confirmación para eliminar permanentemente los datos del usuario. */
     private void showDeleteConfirmation() {
         // Obtenemos los textos traducidos para el diálogo
         String title = getString(R.string.delete_confirm_title);
@@ -564,20 +613,12 @@ public class SettingsActivity extends BaseActivity {
         });
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        SoundManager.getInstance().resumeMusic();
-    }
 
-    @Override protected void onPause() {
-        super.onPause();
-    }
+    // --- ADAPTADOR INTERNO ---
 
-    @Override protected void onDestroy() {
-        super.onDestroy();
-        if (translationManager != null) translationManager.unbindActivity();
-    }
-
+    /**
+     * Adaptador para el RecyclerView que muestra las opciones de color del personaje.
+     */
     private class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ViewHolder> {
         private final String[] names;
         private final int[] colors;

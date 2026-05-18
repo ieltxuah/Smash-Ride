@@ -25,8 +25,8 @@ import androidx.core.content.res.ResourcesCompat;
 
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
-import com.example.smash_ride.core.constants.AppConstants;
 import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -40,67 +40,77 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Vista principal del juego encargada del renderizado, la simulación física y la red.
+ * Implementa {@link Runnable} para manejar el bucle principal en un hilo de ejecución dedicado.
+ * Gestiona la sincronización multijugador mediante un modelo Maestro-Esclavo basado en Firebase.
+ */
 public class GameView extends SurfaceView implements Runnable {
-    private GameOverListener gameOverListener;
+    // --- Enumeración que define los modos de juego soportados ---
     public enum GameMode { LIVES, TIMER }
-    private GameMode gameMode = GameMode.LIVES;
-    private long timerMs = 0L;
+
+    // --- Constantes de Juego y Equilibrio ---
     private static final long TIMER_TOTAL_MS = 3 * 60 * 1000L;
-    private boolean offline = true;
-
-    private Thread gameThread;
-    private boolean isPlaying;
-    private Paint paint;
-    private SurfaceHolder surfaceHolder;
-    private List<Player> players;
-    private Joystick joystick;
-    private GameArea gameArea;
-    private Movie backgroundGif;
-    private long gifStartTime;
-    private Bitmap backgroundStatic;
-    private Rect screenRect;
-    private Typeface hudTypeface;
-    private String labelKills = "Kills: ";
-    private String labelLives = "Lives: ";
-    private String labelTime = "Time: ";
-
-    private float centerX;
-    private float centerY;
-    private float radius;
-
     private static final long FULL_CHARGE_MS = 3000L;
     private static final long MAX_BOOST_MS = 3000L;
     private static final float BOOST_MULTIPLIER = 2.0f;
     private static final float BOOST_SPEED_CAP = 30f;
     private static final float RECHARGE_MULTIPLIER = 2.0f;
+    private static final long VIBRATION_DURATION_MS = 100;
+    private static final long VIBRATION_THROTTLE_MS = 200;
 
+    // --- Control de Ejecución ---
+    private GameOverListener gameOverListener;
+    private GameMode gameMode = GameMode.LIVES;
+    private Thread gameThread;
+    private boolean isPlaying;
+    private SurfaceHolder surfaceHolder;
+    private boolean offline = true;
+    private boolean ended = false;
+    private boolean resultTriggered = false;
+
+    // --- Mundo y Entidades ---
+    private List<Player> players;
+    private Joystick joystick;
+    private GameArea gameArea;
+    private float centerX, centerY, radius;
+    private long timerMs = 0L;
+    private long lastUpdateTimeMs = System.currentTimeMillis();
+
+    // --- Recursos Gráficos e Interfaz ---
+    private Movie backgroundGif;
+    private long gifStartTime;
+    private Bitmap backgroundStatic;
+    private Typeface hudTypeface;
+    private String labelKills, labelLives, labelTime;
+
+    // --- Lógica de Boost Local ---
     private int joystickPointerId = -1;
     private int boostPointerId = -1;
-
     private long chargeAvailableMs = FULL_CHARGE_MS;
     private long boostStoredMs = 0L;
     private boolean boostActive = false;
 
-    private long lastUpdateTimeMs = System.currentTimeMillis();
-    private boolean ended = false;
-
-    private static final long VIBRATION_DURATION_MS = 100;
-    private long lastVibrationTimeMs = 0;
-    private static final long VIBRATION_THROTTLE_MS = 200;
-
+    // --- Red y Firebase ---
     private DatabaseReference roomRef;
     private int mySlot = -1;
-    private String roomId;
-    private PreferenceHelper prefHelper;
     private final Map<Integer, String> slotToIdMap = new HashMap<>();
-    int currentHostSlot = 0;
-    private boolean resultTriggered = false; // Nueva variable de clase para evitar abrir 20 activities
-    private long lastProcessedHitTime = 0;
+    private int currentHostSlot = 0;
 
+    // --- Utilidades ---
+    private long lastVibrationTimeMs = 0;
+    private String roomId;
+
+    /**
+     * Constructor del juego. Inicializa componentes de sonido, traducción y control.
+     *
+     * @param context Contexto de la aplicación.
+     * @param players Lista de jugadores inicializados.
+     * @param color   Color hexadecimal para el joystick del jugador local.
+     */
     public GameView(Context context, List<Player> players, int color) {
         super(context);
         this.setKeepScreenOn(true);
-        this.prefHelper = new PreferenceHelper(context);
         this.players = players;
         this.joystick = new Joystick();
         joystick.setThemeColor(color);
@@ -115,46 +125,94 @@ public class GameView extends SurfaceView implements Runnable {
         initialize();
     }
 
-    private void loadBackgrounds(Context context) {
-        // 1. Intentar cargar GIF
-        try {
-            // Reemplaza 'background_stars' con el nombre real de tu recurso GIF
-            backgroundGif = Movie.decodeStream(context.getResources().openRawResource(R.raw.background_game));
-            gifStartTime = 0;
-        } catch (Exception e) {
-            Log.e("GameView", "No se pudo cargar el GIF de fondo");
-            backgroundGif = null;
-        }
+    /**
+     * Inicia el hilo de ejecución del juego y activa la música de fondo de la partida.
+     */
+    public void resume() {
+        isPlaying = true;
+        gameThread = new Thread(this);
+        gameThread.start();
 
-        // 2. Intentar cargar Imagen Estática (Respaldo 1)
-        try {
-            // Reemplaza 'background_stars_static' con tu imagen PNG/JPG
-            backgroundStatic = BitmapFactory.decodeResource(context.getResources(), R.drawable.background_game_static);
-        } catch (Exception e) {
-            Log.e("GameView", "No se pudo cargar la imagen estática de fondo");
-            backgroundStatic = null;
-        }
+        // REGLA ARQUITECTÓNICA: La música de juego empieza AQUÍ,
+        // cuando el hilo de ejecución del juego arranca de verdad.
+        SoundManager.getInstance().playGameMusic(getContext());
     }
 
-    private void initialize() {
-        surfaceHolder = getHolder();
-        paint = new Paint();
-        paint.setColor(Color.GRAY);
+    /**
+     * Detiene el bucle de juego de forma segura y pausa la reproducción de audio.
+     */
+    public void pause() {
         isPlaying = false;
-
-        chargeAvailableMs = FULL_CHARGE_MS;
-        boostStoredMs = 0;
-        boostActive = false;
-
-        if (players != null) {
-            for (Player p : players) {
-                p.setInvincible(2000);
+        if (gameThread != null) {
+            try {
+                gameThread.join();
+            } catch (InterruptedException e) {
+                Log.e("GameView", "Error while pausing: " + e.getMessage());
             }
         }
-        lastUpdateTimeMs = System.currentTimeMillis();
-        ended = false;
+        // Pausamos la música si el juego se pausa
+        SoundManager.getInstance().pauseMusic();
     }
 
+    /**
+     * Establece el modo de juego (Vidas o Temporizador) y configura el cronómetro si es necesario.
+     *
+     * @param mode El modo de juego {@link GameMode}.
+     */
+    public void setGameMode(GameMode mode) {
+        this.gameMode = mode;
+        if (mode == GameMode.TIMER) timerMs = TIMER_TOTAL_MS;
+    }
+
+    /**
+     * Define si el motor de juego debe operar en modo fuera de línea.
+     *
+     * @param off true para desactivar funciones de red, false para activarlas.
+     */
+    public void setOffline(boolean off) { this.offline = off; }
+
+    /**
+     * Registra un callback para notificar el final de la partida.
+     *
+     * @param listener El objeto que implementa {@link GameOverListener}.
+     */
+    public void setGameOverListener(GameOverListener listener) { this.gameOverListener = listener; }
+
+    /**
+     * Inicializa los datos de red y establece escuchas para el cronómetro del servidor.
+     *
+     * @param roomId Identificador único de la sala en Firebase.
+     * @param mySlot Slot asignado al jugador local (0-3).
+     */
+    public void setOnlineData(String roomId, int mySlot) {
+        this.mySlot = mySlot;
+        this.roomRef = FirebaseDatabase.getInstance().getReference("rooms").child(roomId);
+        roomRef.child("status").child("timer").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists() && mySlot != currentHostSlot) {
+                    Long serverTime = snapshot.getValue(Long.class);
+                    if (serverTime != null) timerMs = serverTime;
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+        listenToOtherPlayers();
+    }
+
+    /** Bucle principal del juego ejecutado en el hilo. */
+    @Override
+    public void run() {
+        while (isPlaying) {
+            update();
+            draw();
+            try {
+                Thread.sleep(16);
+            } catch (InterruptedException ignored) {}
+        }
+    }
+
+    /** Maneja cambios de tamaño de la vista y crea el GameArea. */
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
@@ -164,9 +222,6 @@ public class GameView extends SurfaceView implements Runnable {
 
         // Definimos el radio de la luna (puedes ajustarlo según el diseño)
         radius = 500f;
-
-        // Rectángulo que ocupa toda la pantalla para estirar el fondo
-        screenRect = new Rect(0, 0, w, h);
 
         // Creamos el área de juego aquí con el tamaño correcto
         gameArea = new GameArea(getContext(), centerX, centerY, radius);
@@ -181,32 +236,61 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    public void setGameMode(GameMode mode) {
-        this.gameMode = mode;
-        if (mode == GameMode.TIMER) timerMs = TIMER_TOTAL_MS;
-        // ensure players don't start moving automatically when mode changes
-        if (players != null) {
-            for (Player p : players) {
-                if (!p.isDestroyed()) p.setSpeed(0f);
-            }
-        }
-    }
-
-    public void setOffline(boolean off) {
-        this.offline = off;
-    }
-
+    /**
+     * Maneja eventos táctiles (joystick y boost).
+     *
+     * @param event MotionEvent recibido.
+     * @return true si el evento fue procesado.
+     */
     @Override
-    public void run() {
-        while (isPlaying) {
-            update();
-            draw();
-            try {
-                Thread.sleep(16);
-            } catch (InterruptedException ignored) {}
+    public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        int pointerIndex = event.getActionIndex();
+        int pointerId = event.getPointerId(pointerIndex);
+
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN: {
+                float x = event.getX(pointerIndex);
+                float y = event.getY(pointerIndex);
+                if (joystickPointerId == -1) {
+                    joystickPointerId = pointerId;
+                    joystick.touchDown(x, y);
+                } else if (boostPointerId == -1) {
+                    boostPointerId = pointerId;
+                }
+            } break;
+
+            case MotionEvent.ACTION_MOVE:
+                if (joystickPointerId != -1) {
+                    int idx = event.findPointerIndex(joystickPointerId);
+                    if (idx != -1) {
+                        float mx = event.getX(idx);
+                        float my = event.getY(idx);
+                        joystick.touchMove(mx, my);
+                    }
+                }
+                break;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                if (pointerId == joystickPointerId) {
+                    joystick.touchUp();
+                    joystickPointerId = -1;
+                } else if (pointerId == boostPointerId) {
+                    boostPointerId = -1;
+                    boostStoredMs = 0L;
+                    boostActive = false;
+                }
+                break;
         }
+        return true;
     }
 
+    /**
+     * Lógica de actualización por frame: cronómetro, inputs, simulación maestro/esclavo y
+     * detección de fin de partida.
+     */
     private void update() {
         long now = System.currentTimeMillis();
         long delta = now - lastUpdateTimeMs;
@@ -215,7 +299,6 @@ public class GameView extends SurfaceView implements Runnable {
 
         if (ended || radius <= 0 || players == null || players.isEmpty()) return;
 
-        // --- AÑADE ESTO AQUÍ: Actualizar el cronómetro ---
         if (gameMode == GameMode.TIMER && !offline && mySlot == currentHostSlot) {
             timerMs -= delta;
             if (timerMs < 0) timerMs = 0;
@@ -226,7 +309,6 @@ public class GameView extends SurfaceView implements Runnable {
             timerMs -= delta;
             if (timerMs < 0) timerMs = 0;
         }
-        // ------------------------------------------------
 
         // --- ENCONTRAR JUGADOR LOCAL ---
         Player player1 = getPlayerBySlot(offline ? 0 : mySlot);
@@ -311,80 +393,195 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    private void checkMatchEndConditions() {
-        if (ended) return;    int aliveCount = 0;
-        Player winner = null;
-
-        for (Player p : players) {
-            if (!p.isDestroyed()) {
-                aliveCount++;
-                winner = p;
+    /**
+     * Procesa el input local (joystick/boost) y actualiza la velocidad/ángulo del jugador.
+     *
+     * @param delta   Tiempo desde el último frame en ms.
+     * @param player1 Jugador local.
+     */
+    private void processLocalInput(long delta, Player player1) {
+        if (player1.isColliding()) {
+            if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
+                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
             }
-        }
-
-        // --- CORRECCIÓN AQUÍ ---
-        // En modo VIDAS, la partida acaba si queda 1 o 0 vivos
-        if (gameMode == GameMode.LIVES) {
-            if (aliveCount == 1 && winner != null) {
-                // Avisamos a Firebase del ganador
-                roomRef.child("winner_slot").setValue(winner.slot);
+            player1.setSpeed(0f);
+        } else {
+            if (boostPointerId != -1) {
+                if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
+                    long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
+                    chargeAvailableMs -= transfer;
+                    boostStoredMs += transfer;
+                }
+                boostActive = boostStoredMs > 0;
+            } else {
+                boostActive = false;
+                boostStoredMs = 0L;
+                if (chargeAvailableMs < FULL_CHARGE_MS) {
+                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
+                }
             }
-
-            if (aliveCount <= 1) {
-                ended = true;
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    if (gameOverListener != null) gameOverListener.onGameOver();
-                });
-            }
-        }
-        // En modo TIEMPO, la partida SOLO acaba cuando el tiempo llega a 0
-        else if (gameMode == GameMode.TIMER && timerMs <= 0) {
-            ended = true;
-            new Handler(Looper.getMainLooper()).post(this::endMatchAndShowRanking);
+            float baseSpeed = joystick.getSpeed(player1);
+            float effectiveSpeed = (boostActive && boostStoredMs > 0) ?
+                    Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER) : baseSpeed;
+            if (boostActive) boostStoredMs -= Math.min(delta, boostStoredMs);
+            player1.setSpeed(effectiveSpeed);
+            player1.setAngle(joystick.getAngle(player1));
         }
     }
 
-    // Lo que envían TODOS (incluido el maestro para sus propios datos de input)
-    private void syncMyMovement(float angle, float speed, boolean boost) {
-        if (roomRef == null) return;
-        String myUid = getUserIdBySlot(mySlot);
-        if (myUid != null) {
-            Map<String, Object> input = new HashMap<>();
-            input.put("angle", angle);
-            input.put("speed", speed);
-            input.put("boost", boost);
-            roomRef.child("players").child(myUid).child("input").updateChildren(input);
-        }
-    }
+    /**
+     * Comprueba colisión con el límite circular (la "luna") y aplica muerte o bloqueo según rol.
+     *
+     * @param player Jugador a comprobar.
+     */
+    private void checkCollision(Player player) {
+        if (player == null || player.isDestroyed()) return;
+        float dx = player.getXPos() - centerX;
+        float dy = player.getYPos() - centerY;
+        float dist = (float) Math.hypot(dx, dy);
 
+        if (dist >= radius) {
+            double angle = Math.atan2(dy, dx);
 
-    // SOLO el Maestro llama a esto para todos los jugadores
-    private void syncMasterTruth(int hostSlot) {
-        if (roomRef == null) return;
+            // 1. LÓGICA DE BLOQUEO (Para todos: Maestro, Esclavo o Invencible)
+            // Bloqueamos la posición si: es invencible O si es mi propio personaje en mi pantalla
+            if (player.isInvincible() || (player.slot == mySlot)) {
+                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 5)));
+                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 5)));
+                player.setSpeed(0);
+            }
 
-        for (Player p : players) {
-            // Obtenemos el UID de Firebase de este jugador desde el mapa que llenamos en listenToOtherPlayers
-            String uid = slotToIdMap.get(p.slot);
-
-            if (uid != null) {
-                Map<String, Object> state = new HashMap<>();
-                // Posición relativa al centro para que sea independiente de la resolución
-                state.put("relX", p.getXPos() - centerX);
-                state.put("relY", p.getYPos() - centerY);
-                state.put("angle", p.getAngle());
-                state.put("lives", p.getLives());
-                state.put("kills", p.getKills());
-                state.put("inv", p.isInvincible());
-                state.put("livesLost", p.getLivesLostMatch());
-                state.put("hitsDeal", p.getHitsDealtMatch());
-                state.put("boost", p.getBoosting());
-
-                // El maestro escribe la "Verdad" en el nodo state de CADA jugador
-                roomRef.child("players").child(uid).child("state").updateChildren(state);
+            // 2. LÓGICA DE MUERTE (Sólo el Maestro o en Offline)
+            if (offline || mySlot == currentHostSlot) {
+                if (!player.isInvincible()) {
+                    if (gameMode == GameMode.LIVES) {
+                        player.loseLife();
+                    }
+                    player.resetPosition();
+                    if (player.slot == mySlot)
+                        vibratePhoneThrottled();
+                }
             }
         }
     }
 
+    /**
+     * Maneja la colisión entre dos jugadores (determina agresor/afectado, aplica retroceso y kills).
+     *
+     * @param playerA Jugador A.
+     * @param playerB Jugador B.
+     */
+    private void handleCollision(Player playerA, Player playerB) {
+        if (playerA == null || playerB == null) return;
+        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
+
+        playerA.addHit();
+        playerB.addHit();
+
+        float dx = playerA.getXPos() - playerB.getXPos();
+        float dy = playerA.getYPos() - playerB.getYPos();
+        float distance = (float) Math.hypot(dx, dy);
+        if (distance == 0f) distance = 0.001f;
+
+        // Vibrar si el jugador local está involucrado
+        if (playerA.slot == mySlot || playerB.slot == mySlot) vibratePhoneThrottled();
+
+        float pushX = dx / distance;
+        float pushY = dy / distance;
+
+        // Determinar quién es el agresor (más rápido) y quién el afectado (más lento)
+        Player affected;
+        Player faster;
+
+        if (playerA.getSpeed() > playerB.getSpeed()) {
+            affected = playerB;
+            faster = playerA;
+        } else if (playerB.getSpeed() > playerA.getSpeed()) {
+            affected = playerA;
+            faster = playerB;
+        } else {
+            // Empate de velocidad: ambos retroceden, no hay "killer" claro
+            applyRetroceForBoth(playerA, playerB, pushX, pushY, playerA.getSpeed());
+            return;
+        }
+
+        // Aplicar retroceso físico al jugador afectado
+        float retreatSpeed = faster.getSpeed();
+        // Invertimos el ángulo del afectado para que salga despedido en dirección opuesta al choque
+        float angleToPush = (affected == playerA) ? (float) Math.atan2(dy, dx) : (float) Math.atan2(-dy, -dx);
+
+        affected.disableJoystick();
+
+        for (int i = 0; i <= 10; i++) {
+            final int step = i;
+            final long delay = step * 10L;
+            final float moveX = (float) Math.cos(angleToPush) * retreatSpeed;
+            final float moveY = (float) Math.sin(angleToPush) * retreatSpeed;
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (affected.isDestroyed()) return;
+
+                // Mover por impacto
+                affected.setXPos(affected.getXPos() + moveX);
+                affected.setYPos(affected.getYPos() + moveY);
+
+                // Comprobar si se sale de la luna DURANTE el retroceso
+                float dist = (float) Math.hypot(affected.getXPos() - centerX, affected.getYPos() - centerY);
+                if (dist >= radius) {
+                    // Si hay un agresor, le damos la Kill CADA VEZ que el otro pierda una vida
+                    if (!faster.isDestroyed()) {
+                        faster.addKill();
+                    }
+
+                    if (gameMode == GameMode.LIVES) {
+                        affected.loseLife();
+                    }
+
+                    // Reposicionar al jugador (esto limpia el lastHitter internamente)
+                    affected.resetPosition();
+                }
+
+                if (step == 10) affected.enableJoystick();
+            }, delay);
+        }
+    }
+
+    /**
+     * Aplica retroceso a ambos jugadores en caso de empate de velocidad.
+     *
+     * @param playerA      Jugador A.
+     * @param playerB      Jugador B.
+     * @param pushX        Componente X de empuje normalizado.
+     * @param pushY        Componente Y de empuje normalizado.
+     * @param retreatSpeed Velocidad de retroceso.
+     */
+    private void applyRetroceForBoth(Player playerA, Player playerB, float pushX, float pushY, float retreatSpeed) {
+        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
+        playerA.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
+        playerB.setAngle((float) Math.toDegrees(Math.atan2(-pushY, -pushX)));
+        playerA.disableJoystick();
+        playerB.disableJoystick();
+        for (int i = 0; i <= 10; i++) {
+            final int step = i;
+            final long delay = step * 10L;
+            final float dxPush = pushX;
+            final float dyPush = pushY;
+            final float rSpeed = retreatSpeed;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (playerA.isDestroyed() || playerB.isDestroyed()) return;
+                playerA.setXPos(playerA.getXPos() + dxPush * rSpeed * 0.1f);
+                playerA.setYPos(playerA.getYPos() + dyPush * rSpeed * 0.1f);
+                playerB.setXPos(playerB.getXPos() - dxPush * rSpeed * 0.1f);
+                playerB.setYPos(playerB.getYPos() - dyPush * rSpeed * 0.1f);
+                if (step == 10) {
+                    playerA.enableJoystick();
+                    playerB.enableJoystick();
+                }
+            }, delay);
+        }
+    }
+
+    /** Dibuja todo el frame: fondo, gameArea, jugadores, joystick y HUD. */
     private void draw() {
         Canvas canvas = null;
         try {
@@ -440,6 +637,7 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
+    /** Inicializa las cadenas del HUD y solicita traducciones si es necesario. */
     private void initHudTranslations() {
         Context ctx = getContext();
         // 1. Cargar base desde strings.xml (Nativo: ES, EU, EN)
@@ -450,7 +648,7 @@ public class GameView extends SurfaceView implements Runnable {
         // 2. Si el idioma no es nativo, pedir traducción a ML Kit
         PreferenceHelper pf = new PreferenceHelper(ctx);
         String lang = pf.getLanguage();
-        if (!lang.equals("es") && !lang.equals("eu") && !lang.equals("en")) {
+        if (!LocaleUtils.isNativeLanguage(lang)) {
             TranslationManager tm = TranslationManager.getInstance();
             tm.translateRaw(labelKills, translated -> labelKills = translated);
             tm.translateRaw(labelLives, translated -> labelLives = translated);
@@ -458,7 +656,11 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    // 1. Asegúrate de que las variables de HUD y Paint estén bien definidas
+    /**
+     * Dibuja los elementos del HUD (vidas/tiempo, kills, barra de boost).
+     *
+     * @param canvas Canvas donde dibujar.
+     */
     private void drawHUD(Canvas canvas) {
         if (players == null || players.isEmpty()) return;
         int localIdx = (offline) ? 0 : mySlot;
@@ -526,27 +728,83 @@ public class GameView extends SurfaceView implements Runnable {
         canvas.drawRect(marginX, barTop, marginX + barWidth, barTop + barHeight, barPaint);
     }
 
-    public void setOnlineData(String roomId, int mySlot) {
-        this.roomId = roomId;
-        this.mySlot = mySlot;
-        this.roomRef = FirebaseDatabase.getInstance().getReference("rooms").child(roomId);
-        roomRef.child("status").child("timer").addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                if (snapshot.exists() && mySlot != currentHostSlot) {
-                    Long serverTime = snapshot.getValue(Long.class);
-                    if (serverTime != null) timerMs = serverTime;
-                }
+    /**
+     * Carga recursos de fondo (GIF o imagen estática).
+     *
+     * @param context Contexto para acceder a recursos.
+     */
+    private void loadBackgrounds(Context context) {
+        // 1. Intentar cargar GIF
+        try {
+            // Reemplaza 'background_stars' con el nombre real de tu recurso GIF
+            backgroundGif = Movie.decodeStream(context.getResources().openRawResource(R.raw.background_game));
+            gifStartTime = 0;
+        } catch (Exception e) {
+            Log.e("GameView", "No se pudo cargar el GIF de fondo");
+            backgroundGif = null;
+        }
+
+        // 2. Intentar cargar Imagen Estática (Respaldo 1)
+        try {
+            // Reemplaza 'background_stars_static' con tu imagen PNG/JPG
+            backgroundStatic = BitmapFactory.decodeResource(context.getResources(), R.drawable.background_game_static);
+        } catch (Exception e) {
+            Log.e("GameView", "No se pudo cargar la imagen estática de fondo");
+            backgroundStatic = null;
+        }
+    }
+
+    /**
+     * Sincroniza el input local (joystick/boost) al nodo input del jugador en Firebase.
+     *
+     * @param angle Ángulo actual.
+     * @param speed Velocidad actual.
+     * @param boost Indica si está haciendo boost.
+     */
+    private void syncMyMovement(float angle, float speed, boolean boost) {
+        if (roomRef == null) return;
+        String myUid = getUserIdBySlot(mySlot);
+        if (myUid != null) {
+            Map<String, Object> input = new HashMap<>();
+            input.put("angle", angle);
+            input.put("speed", speed);
+            input.put("boost", boost);
+            roomRef.child("players").child(myUid).child("input").updateChildren(input);
+        }
+    }
+
+    /**
+     * El maestro publica la posición y estado "verdadero" de todos los jugadores en Firebase.
+     *
+     * @param hostSlot Slot que actúa como maestro.
+     */
+    private void syncMasterTruth(int hostSlot) {
+        if (roomRef == null) return;
+
+        for (Player p : players) {
+            // Obtenemos el UID de Firebase de este jugador desde el mapa que llenamos en listenToOtherPlayers
+            String uid = slotToIdMap.get(p.slot);
+
+            if (uid != null) {
+                Map<String, Object> state = new HashMap<>();
+                // Posición relativa al centro para que sea independiente de la resolución
+                state.put("relX", p.getXPos() - centerX);
+                state.put("relY", p.getYPos() - centerY);
+                state.put("angle", p.getAngle());
+                state.put("lives", p.getLives());
+                state.put("kills", p.getKills());
+                state.put("inv", p.isInvincible());
+                state.put("livesLost", p.getLivesLostMatch());
+                state.put("hitsDeal", p.getHitsDealtMatch());
+                state.put("boost", p.getBoosting());
+
+                // El maestro escribe la "Verdad" en el nodo state de CADA jugador
+                roomRef.child("players").child(uid).child("state").updateChildren(state);
             }
-            @Override public void onCancelled(@NonNull DatabaseError error) {}
-        });
-        listenToOtherPlayers();
+        }
     }
 
-    private String getUserIdBySlot(int slot) {
-        return slotToIdMap.get(slot);
-    }
-
+    /** Inicia la escucha de cambios en la base de datos para actualizar los clones remotos. */
     private void listenToOtherPlayers() {
         if (roomRef == null) return;
         roomRef.child("players").addValueEventListener(new ValueEventListener() {
@@ -626,146 +884,12 @@ public class GameView extends SurfaceView implements Runnable {
         });
     }
 
-    private void checkCollision(Player player) {
-        if (player == null || player.isDestroyed()) return;
-        float dx = player.getXPos() - centerX;
-        float dy = player.getYPos() - centerY;
-        float dist = (float) Math.hypot(dx, dy);
-
-        if (dist >= radius) {
-            double angle = Math.atan2(dy, dx);
-
-            // 1. LÓGICA DE BLOQUEO (Para todos: Maestro, Esclavo o Invencible)
-            // Bloqueamos la posición si: es invencible O si es mi propio personaje en mi pantalla
-            if (player.isInvincible() || (player.slot == mySlot)) {
-                player.setXPos(centerX + (float) (Math.cos(angle) * (radius - 5)));
-                player.setYPos(centerY + (float) (Math.sin(angle) * (radius - 5)));
-                player.setSpeed(0);
-            }
-
-            // 2. LÓGICA DE MUERTE (Sólo el Maestro o en Offline)
-            if (offline || mySlot == currentHostSlot) {
-                if (!player.isInvincible()) {
-                    if (gameMode == GameMode.LIVES) {
-                        player.loseLife();
-                    }
-                    player.resetPosition();
-                    if (player.slot == mySlot)
-                        vibratePhoneThrottled();
-                }
-            }
-        }
-    }
-
-    private void handleCollision(Player playerA, Player playerB) {
-        if (playerA == null || playerB == null) return;
-        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
-
-        playerA.addHit();
-        playerB.addHit();
-
-        float dx = playerA.getXPos() - playerB.getXPos();
-        float dy = playerA.getYPos() - playerB.getYPos();
-        float distance = (float) Math.hypot(dx, dy);
-        if (distance == 0f) distance = 0.001f;
-
-        // Vibrar si el jugador local está involucrado
-        if (playerA.slot == mySlot || playerB.slot == mySlot) vibratePhoneThrottled();
-
-        float pushX = dx / distance;
-        float pushY = dy / distance;
-
-        // Determinar quién es el agresor (más rápido) y quién el afectado (más lento)
-        Player affected;
-        Player faster;
-
-        if (playerA.getSpeed() > playerB.getSpeed()) {
-            affected = playerB;
-            faster = playerA;
-        } else if (playerB.getSpeed() > playerA.getSpeed()) {
-            affected = playerA;
-            faster = playerB;
-        } else {
-            // Empate de velocidad: ambos retroceden, no hay "killer" claro
-            applyRetroceForBoth(playerA, playerB, pushX, pushY, playerA.getSpeed());
-            return;
-        }
-
-        // Aplicar retroceso físico al jugador afectado
-        float retreatSpeed = faster.getSpeed();
-        // Invertimos el ángulo del afectado para que salga despedido en dirección opuesta al choque
-        float angleToPush = (affected == playerA) ? (float) Math.atan2(dy, dx) : (float) Math.atan2(-dy, -dx);
-
-        affected.disableJoystick();
-
-        for (int i = 0; i <= 10; i++) {
-            final int step = i;
-            final long delay = step * 10L;
-            final float moveX = (float) Math.cos(angleToPush) * retreatSpeed;
-            final float moveY = (float) Math.sin(angleToPush) * retreatSpeed;
-
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                if (affected.isDestroyed()) return;
-
-                // Mover por impacto
-                affected.setXPos(affected.getXPos() + moveX);
-                affected.setYPos(affected.getYPos() + moveY);
-
-                // Comprobar si se sale de la luna DURANTE el retroceso
-                float dist = (float) Math.hypot(affected.getXPos() - centerX, affected.getYPos() - centerY);
-                if (dist >= radius) {
-                    // --- CAMBIO CLAVE AQUÍ ---
-                    // Si hay un agresor, le damos la Kill CADA VEZ que el otro pierda una vida
-                    if (!faster.isDestroyed()) {
-                        faster.addKill();
-                    }
-
-                    if (gameMode == GameMode.LIVES) {
-                        affected.loseLife();
-                    }
-
-                    // Reposicionar al jugador (esto limpia el lastHitter internamente)
-                    affected.resetPosition();
-                }
-
-                if (step == 10) affected.enableJoystick();
-            }, delay);
-        }
-    }
-
-    private void applyRetroceForBoth(Player playerA, Player playerB, float pushX, float pushY, float retreatSpeed) {
-        if (playerA.isDestroyed() || playerB.isDestroyed()) return;
-        playerA.setAngle((float) Math.toDegrees(Math.atan2(pushY, pushX)));
-        playerB.setAngle((float) Math.toDegrees(Math.atan2(-pushY, -pushX)));
-        playerA.disableJoystick();
-        playerB.disableJoystick();
-        for (int i = 0; i <= 10; i++) {
-            final int step = i;
-            final long delay = step * 10L;
-            final float dxPush = pushX;
-            final float dyPush = pushY;
-            final float rSpeed = retreatSpeed;
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                if (playerA.isDestroyed() || playerB.isDestroyed()) return;
-                playerA.setXPos(playerA.getXPos() + dxPush * rSpeed * 0.1f);
-                playerA.setYPos(playerA.getYPos() + dyPush * rSpeed * 0.1f);
-                playerB.setXPos(playerB.getXPos() - dxPush * rSpeed * 0.1f);
-                playerB.setYPos(playerB.getYPos() - dyPush * rSpeed * 0.1f);
-                if (step == 10) {
-                    playerA.enableJoystick();
-                    playerB.enableJoystick();
-                }
-            }, delay);
-        }
-    }
-
-    private Player getPlayerBySlot(int slot) {
-        for (Player p : players) {
-            if (p.slot == slot) return p;
-        }
-        return null;
-    }
-
+    /**
+     * Actualiza un objeto Player a partir del snapshot "state" publicado por el Maestro.
+     *
+     * @param p     Player local a actualizar.
+     * @param state DataSnapshot con el estado publicado.
+     */
     private void updatePlayerFromState(Player p, DataSnapshot state) {
         if (!state.exists()) return;
 
@@ -801,7 +925,6 @@ public class GameView extends SurfaceView implements Runnable {
             float newTargetX = centerX + rx;
             float newTargetY = centerY + ry;
 
-            // --- SOLUCIÓN AL TELETRANSPORTE ---
             // Calculamos la distancia entre donde está el dibujo y donde dice el maestro que debe estar
             float distance = (float) Math.hypot(newTargetX - p.getXPos(), newTargetY - p.getYPos());
 
@@ -817,37 +940,41 @@ public class GameView extends SurfaceView implements Runnable {
         if (ang != null) p.setAngle(ang);
     }
 
-    // Mueve la lógica de input aquí para que update() sea legible
-    private void processLocalInput(long delta, Player player1) {
-        if (player1.isColliding()) {
-            if (boostPointerId == -1 && chargeAvailableMs < FULL_CHARGE_MS) {
-                chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
+    /** Verifica si se han cumplido las condiciones de victoria o derrota. */
+    private void checkMatchEndConditions() {
+        if (ended) return;
+        int aliveCount = 0;
+        Player winner = null;
+
+        for (Player p : players) {
+            if (!p.isDestroyed()) {
+                aliveCount++;
+                winner = p;
             }
-            player1.setSpeed(0f);
-        } else {
-            if (boostPointerId != -1) {
-                if (chargeAvailableMs > 0 && boostStoredMs < MAX_BOOST_MS) {
-                    long transfer = Math.min(delta, Math.min(chargeAvailableMs, MAX_BOOST_MS - boostStoredMs));
-                    chargeAvailableMs -= transfer;
-                    boostStoredMs += transfer;
-                }
-                boostActive = boostStoredMs > 0;
-            } else {
-                boostActive = false;
-                boostStoredMs = 0L;
-                if (chargeAvailableMs < FULL_CHARGE_MS) {
-                    chargeAvailableMs = Math.min(FULL_CHARGE_MS, chargeAvailableMs + (long)(delta / RECHARGE_MULTIPLIER));
-                }
+        }
+
+        // En modo VIDAS, la partida acaba si queda 1 o 0 vivos
+        if (gameMode == GameMode.LIVES) {
+            if (aliveCount == 1 && winner != null) {
+                // Avisamos a Firebase del ganador
+                roomRef.child("winner_slot").setValue(winner.slot);
             }
-            float baseSpeed = joystick.getSpeed(player1);
-            float effectiveSpeed = (boostActive && boostStoredMs > 0) ?
-                    Math.min(BOOST_SPEED_CAP, baseSpeed * BOOST_MULTIPLIER) : baseSpeed;
-            if (boostActive) boostStoredMs -= Math.min(delta, boostStoredMs);
-            player1.setSpeed(effectiveSpeed);
-            player1.setAngle(joystick.getAngle(player1));
+
+            if (aliveCount <= 1) {
+                ended = true;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (gameOverListener != null) gameOverListener.onGameOver();
+                });
+            }
+        }
+        // En modo TIEMPO, la partida SOLO acaba cuando el tiempo llega a 0
+        else if (gameMode == GameMode.TIMER && timerMs <= 0) {
+            ended = true;
+            new Handler(Looper.getMainLooper()).post(this::endMatchAndShowRanking);
         }
     }
 
+    /** Termina la partida y muestra el ranking / notifica GameOver. */
     private void endMatchAndShowRanking() {
         ended = true;
         isPlaying = false;
@@ -860,6 +987,46 @@ public class GameView extends SurfaceView implements Runnable {
         });
     }
 
+    /** Inicializa variables internas y estado del juego. */
+    private void initialize() {
+        surfaceHolder = getHolder();
+        isPlaying = false;
+
+        chargeAvailableMs = FULL_CHARGE_MS;
+        boostStoredMs = 0;
+        boostActive = false;
+
+        if (players != null) {
+            for (Player p : players) {
+                p.setInvincible(2000);
+            }
+        }
+        lastUpdateTimeMs = System.currentTimeMillis();
+        ended = false;
+    }
+
+    /**
+     * Obtiene el UID (Firebase) asociado a un slot.
+     *
+     * @param slot Slot (0-3).
+     * @return UID o null si no existe.
+     */
+    private String getUserIdBySlot(int slot) { return slotToIdMap.get(slot); }
+
+    /**
+     * Devuelve el Player correspondiente a un slot.
+     *
+     * @param slot Slot buscado.
+     * @return Player o null.
+     */
+    private Player getPlayerBySlot(int slot) {
+        for (Player p : players) {
+            if (p.slot == slot) return p;
+        }
+        return null;
+    }
+
+    /** Maneja la vibración con throttle y reproduce sonido de colisión. */
     private void vibratePhoneThrottled() {
         long now = System.currentTimeMillis();
         if (now - lastVibrationTimeMs < VIBRATION_THROTTLE_MS) return;
@@ -869,6 +1036,7 @@ public class GameView extends SurfaceView implements Runnable {
         SoundManager.getInstance().playCollisionSound();
     }
 
+    /** Ejecuta la vibración en el dispositivo (maneja APIs según versión). */
     private void vibratePhone() {
         try {
             Context ctx = getContext();
@@ -896,82 +1064,4 @@ public class GameView extends SurfaceView implements Runnable {
         }
     }
 
-    public void resume() {
-        isPlaying = true;
-        gameThread = new Thread(this);
-        gameThread.start();
-
-        // REGLA ARQUITECTÓNICA: La música de juego empieza AQUÍ,
-        // cuando el hilo de ejecución del juego arranca de verdad.
-        SoundManager.getInstance().playGameMusic(getContext());
-    }
-
-    public void pause() {
-        isPlaying = false;
-        if (gameThread != null) {
-            try {
-                gameThread.join();
-            } catch (InterruptedException e) {
-                Log.e("GameView", "Error while pausing: " + e.getMessage());
-            }
-        }
-        // Pausamos la música si el juego se pausa
-        SoundManager.getInstance().pauseMusic();
-    }
-
-    public void setGameOverListener(GameOverListener listener) {
-        this.gameOverListener = listener;
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getActionMasked();
-        int pointerIndex = event.getActionIndex();
-        int pointerId = event.getPointerId(pointerIndex);
-
-//        Player player1 = getPlayerBySlot(offline ? 0 : mySlot);
-//        if (player1 == null || player1.isDestroyed()) return true;
-
-        switch (action) {
-            case MotionEvent.ACTION_DOWN:
-            case MotionEvent.ACTION_POINTER_DOWN: {
-                float x = event.getX(pointerIndex);
-                float y = event.getY(pointerIndex);
-                if (joystickPointerId == -1) {
-                    joystickPointerId = pointerId;
-                    joystick.touchDown(x, y);
-                } else if (boostPointerId == -1) {
-                    boostPointerId = pointerId;
-                }
-            } break;
-
-            case MotionEvent.ACTION_MOVE:
-                if (joystickPointerId != -1) {
-                    int idx = event.findPointerIndex(joystickPointerId);
-                    if (idx != -1) {
-                        float mx = event.getX(idx);
-                        float my = event.getY(idx);
-                        joystick.touchMove(mx, my);
-                    }
-                }
-                break;
-
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_POINTER_UP:
-                if (pointerId == joystickPointerId) {
-                    joystick.touchUp();
-                    joystickPointerId = -1;
-                } else if (pointerId == boostPointerId) {
-                    boostPointerId = -1;
-                    boostStoredMs = 0L;
-                    boostActive = false;
-                }
-                break;
-        }
-        return true;
-    }
-
-    public Player getLocalPlayer() {
-        return getPlayerBySlot(offline ? 0 : mySlot);
-    }
 }

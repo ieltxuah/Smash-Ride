@@ -12,50 +12,70 @@ import com.example.smash_ride.core.graphics.SpriteColorizer;
 
 import java.util.LinkedList;
 
+/**
+ * Clase que representa a un jugador (estrella) en el campo de batalla.
+ * Gestiona la física de movimiento, el sistema de vidas, las estelas visuales (clones)
+ * durante el boost y la sincronización de estados para el modo multijugador.
+ */
 public class Player {
-    // Variable para el sprite coloreado
-    private Bitmap playerBitmap;
-    private Bitmap borderBitmap;
+    private static final String TAG = "Player";
 
+    // --- Identificación y Estado ---
     public String name;
-    private float xPos;
-    private float yPos;
-    private final float initialX;
-    private final float initialY;
-    private float speed;
-    private float angle;
-    private final float initialAngle;
-    private float collisionAngle;
-    private boolean isColliding;
-    private final Paint paint;
-
-    private final float initialSpeed;
-
-    // Estado de juego
+    public int slot;
     private int lives = 5;
     private int kills = 0;
     private boolean destroyed = false;
+    private int livesLostMatch = 0;
+    private int hitsDealtMatch = 0;
+
+    // --- Posicionamiento y Física ---
+    private float xPos, yPos;
+    private final float initialX, initialY;
+    private float speed;
+    private float angle;
+    private final float initialAngle, initialSpeed;
+    private float collisionAngle;
+    private boolean isColliding;
+    private boolean isBoosting = false;
+
+    // --- Invencibilidad ---
     private boolean isInvincible = false;
     private long invincibilityEndTime = 0;
-    public int slot;
-    private float targetX, targetY;
-    private boolean isRemote = false;
     private boolean networkInvincible = false;
 
-    private int livesLostMatch = 0; // Vidas perdidas en esta partida
-    private int hitsDealtMatch = 0; // Golpes dados a otros en esta partida
+    // --- Red e Interpolación ---
+    private float targetX, targetY;
+    private boolean isRemote = false;
 
+    // --- Gráficos y Efectos ---
+    private Bitmap playerBitmap;
+    private Bitmap borderBitmap;
+    private final Paint paint;
+    private final Paint trailPaint = new Paint();
+    private final LinkedList<TrailPoint> trailHistory = new LinkedList<>();
+    private final int MAX_TRAIL_POINTS = 5;
+
+    /**
+     * Almacena la posición y ángulo para renderizar la estela del boost.
+     */
     private static class TrailPoint {
         float x, y, angle;
         TrailPoint(float x, float y, float angle) {
             this.x = x; this.y = y; this.angle = angle;
         }
     }
-    private final LinkedList<TrailPoint> trailHistory = new LinkedList<>();
-    private final int MAX_TRAIL_POINTS = 5; // Número de clones
-    private boolean isBoosting = false;     // Estado para saber si dibujar la estela
-    private final Paint trailPaint = new Paint(); // Paint para la transparencia
 
+    /**
+     * Constructor del Jugador.
+     *
+     * @param name         Nombre del jugador.
+     * @param x            Coordenada X inicial.
+     * @param y            Coordenada Y inicial.
+     * @param initialAngle Ángulo inicial en grados.
+     * @param speed        Velocidad inicial.
+     * @param slot         Posición en la sala (0-3).
+     */
     public Player(String name, float x, float y, float initialAngle, int speed, int slot) {
         this.name = name;
         this.xPos = x;
@@ -72,9 +92,13 @@ public class Player {
         this.isColliding = false;
     }
 
+    // --- Gestión Gráfica ---
+
     /**
-     * Configura el aspecto visual del jugador.
-     * Escala los bitmaps para que coincidan con el radio de colisión (25).
+     * Carga y personaliza los recursos visuales del jugador según su color.
+     *
+     * @param context    Contexto para acceder a los recursos.
+     * @param themeColor Color hexadecimal para tintar la estrella.
      */
     public void setAppearance(Context context, int themeColor) {
         // El círculo de fallback ahora también tendrá el color correcto
@@ -98,6 +122,11 @@ public class Player {
         }
     }
 
+    /**
+     * Dibuja al jugador y sus efectos asociados (estela, invencibilidad) en el lienzo.
+     *
+     * @param canvas Lienzo donde dibujar.
+     */
     public void draw(Canvas canvas) {
         if (destroyed) return;
 
@@ -171,6 +200,11 @@ public class Player {
         }
     }
 
+    // --- Lógica y Físicas ---
+
+    /**
+     * Actualiza la posición del jugador y gestiona la estela.
+     */
     public void update() {
         if (destroyed) return;
 
@@ -191,9 +225,7 @@ public class Player {
         } else {
             // Lógica normal para tu jugador local
             if (isColliding) {
-                // El rebote ignora el joystick
-                xPos += Math.cos(Math.toRadians(collisionAngle)) * speed;
-                yPos += Math.sin(Math.toRadians(collisionAngle)) * speed;
+                // El rebote ignora el joystick y se maneja el movimiento en GameView
                 speed *= 0.92f; // Rozamiento
                 if (speed < 0.5f) isColliding = false;
             } else {
@@ -228,58 +260,9 @@ public class Player {
         }
     }
 
-    public void setBoosting(boolean boosting) {
-        this.isBoosting = boosting;
-    }
-
-    public boolean getBoosting() {
-        return isBoosting;
-    }
-
-    public void setInvincible(long durationMs) {
-        this.isInvincible = true;
-        this.invincibilityEndTime = System.currentTimeMillis() + durationMs;
-    }
-
-    public void setInvincibleByNetwork(boolean invincible) {
-        this.networkInvincible = invincible;
-    }
-
-    // Modifica el método isInvincible() existente para que considere ambos estados
-    public boolean isInvincible() {
-        // Es invencible si el tiempo local no ha acabado O si la red dice que lo es
-        if (isInvincible && System.currentTimeMillis() > invincibilityEndTime) {
-            isInvincible = false;
-        }
-        return isInvincible || networkInvincible;
-    }
-
-    public void setSpeed(float speed) {
-        if (destroyed) return;
-        this.speed = speed;
-    }
-
-    public float getSpeed() {
-        return destroyed ? 0f : speed;
-    }
-
-    public void setAngle(float angle) {
-        if (destroyed) return;
-        this.angle = angle;
-    }
-
-    public float getAngle() {
-        return angle;
-    }
-
-    public void setXPos(float x) {
-        this.xPos = x;
-    }
-
-    public void setYPos(float y) {
-        this.yPos = y;
-    }
-
+    /**
+     * Restablece al jugador a su estado inicial.
+     */
     public void resetPosition() {
         if (destroyed) {
             this.xPos = -1000f;
@@ -298,10 +281,11 @@ public class Player {
         setInvincible(2000);
     }
 
-
     /**
-     * Fuerza la posición del jugador ignorando la interpolación de red.
-     * Útil para respawns o teletransportes.
+     * Reposiciona instantáneamente al jugador en coordenadas específicas.
+     *
+     * @param x Nueva posición X.
+     * @param y Nueva posición Y.
      */
     public void snapToPosition(float x, float y) {
         this.xPos = x;
@@ -312,14 +296,71 @@ public class Player {
         this.speed = 0;
     }
 
-    public float getXPos() {
-        return xPos;
+    // --- Combate y Vidas ---
+
+    /**
+     * Reduce vidas si el jugador no es invencible.
+     */
+    public void loseLife() {
+        if (destroyed || isInvincible()) return;
+        if (lives > 0) {
+            lives--;
+            livesLostMatch++;
+        }
+        if (lives <= 0) markDestroyed();
     }
 
-    public float getYPos() {
-        return yPos;
+    /** Incrementa el contador de bajas. */
+    public void addKill() { if (!destroyed) kills++; }
+
+    /** Registra un impacto dado. */
+    public void addHit() { hitsDealtMatch++; }
+
+    /** Marca al jugador como fuera de combate. */
+    public void destroy() { markDestroyed(); }
+
+    private void markDestroyed() {
+        destroyed = true;
+        isColliding = true;
+        speed = 0f;
+        this.xPos = -5000f;
+        this.yPos = -5000f;
     }
 
+    // --- Getters y Setters ---
+
+    public boolean isInvincible() {
+        // Es invencible si el tiempo local no ha acabado O si la red dice que lo es
+        if (isInvincible && System.currentTimeMillis() > invincibilityEndTime) {
+            isInvincible = false;
+        }
+        return isInvincible || networkInvincible;
+    }
+
+    public void setInvincible(long durationMs) {
+        this.isInvincible = true;
+        this.invincibilityEndTime = System.currentTimeMillis() + durationMs;
+    }
+
+    public void setInvincibleByNetwork(boolean invincible) {
+        this.networkInvincible = invincible;
+    }
+
+    public float getXPos() { return xPos; }
+    public void setXPos(float x) { this.xPos = x; }
+    public float getYPos() { return yPos; }
+    public void setYPos(float y) { this.yPos = y; }
+
+    public float getSpeed() { return destroyed ? 0f : speed; }
+    public void setSpeed(float speed) { if (!destroyed) this.speed = speed; }
+
+    public float getAngle() { return angle; }
+    public void setAngle(float angle) { if (!destroyed) this.angle = angle; }
+
+    public boolean getBoosting() { return isBoosting; }
+    public void setBoosting(boolean boosting) { this.isBoosting = boosting; }
+
+    public boolean isColliding() { return isColliding || destroyed; }
     public void setColliding(boolean colliding) {
         if (destroyed) {
             this.isColliding = true;
@@ -331,10 +372,6 @@ public class Player {
             this.speed = 0f;
             // Bloqueamos red localmente también por si acaso
         }
-    }
-
-    public boolean isColliding() {
-        return isColliding || destroyed;
     }
 
     public void disableJoystick() {
@@ -353,50 +390,18 @@ public class Player {
         if (l <= 0) markDestroyed();
     }
 
-    public int getColor() {
-        return paint.getColor();
-    }
-
-    public void loseLife() {
-        if (destroyed || isInvincible()) return;
-        if (lives > 0) {
-            lives--;
-            livesLostMatch++;
-        }
-        if (lives <= 0) {
-            markDestroyed();
-        }
-    }
-
-    public void setKills(int kills) {
-        this.kills = kills;
-    }
-
-    public void addHit() { hitsDealtMatch++; }
-    public int getLivesLostMatch() { return livesLostMatch; }
-    public int getHitsDealtMatch() { return hitsDealtMatch; }
-
-    private void markDestroyed() {
-        destroyed = true;
-        isColliding = true;
-        speed = 0f;
-        this.xPos = -5000f;
-        this.yPos = -5000f;
-    }
-
     public int getKills() { return kills; }
-    public void addKill() {
-        if (destroyed) return;
-        kills++;
-    }
+    public void setKills(int kills) { this.kills = kills; }
+
+    public int getColor() { return paint.getColor(); }
 
     public boolean isDestroyed() { return destroyed; }
 
-    public void destroy() {
-        markDestroyed();
-    }
+    public int getLivesLostMatch() { return livesLostMatch; }
+    public void setLivesLostMatch(int lvLost) { this.livesLostMatch = lvLost; }
+    public int getHitsDealtMatch() { return hitsDealtMatch; }
+    public void setHitsDealtMatch(int hitsDeal) { this.hitsDealtMatch = hitsDeal; }
 
-    // Método para que GameView marque si es un clon remoto
     public void setIsRemote(boolean remote) {
         this.isRemote = remote;
         if (!remote) {
@@ -407,17 +412,8 @@ public class Player {
         }
     }
 
-    // Método para recibir la posición de red
     public void setRemoteTarget(float x, float y) {
         this.targetX = x;
         this.targetY = y;
-    }
-
-    public void setLivesLostMatch(int lvLost) {
-        this.livesLostMatch = lvLost;
-    }
-
-    public void setHitsDealtMatch(int hitsDeal) {
-        this.hitsDealtMatch = hitsDeal;
     }
 }

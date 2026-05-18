@@ -13,7 +13,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.res.ResourcesCompat;
 
 import com.example.smash_ride.R;
@@ -27,13 +26,15 @@ import com.example.smash_ride.translation.TranslationManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 
+/**
+ * Actividad que muestra la clasificación final después de una partida en modo Temporizador.
+ * Lista a los jugadores ordenados por su número de bajas (kills) y permite regresar al menú.
+ */
 public class RankingGameActivity extends BaseActivity {
 
     private TranslationManager translationManager;
     private String currentLang;
-    private Typeface kirbyFont;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,13 +45,6 @@ public class RankingGameActivity extends BaseActivity {
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ranking_game);
-
-        // Cargar fuente para los items de la lista
-        try {
-            kirbyFont = ResourcesCompat.getFont(this, R.font.kirby_classic);
-        } catch (Exception e) {
-            kirbyFont = Typeface.DEFAULT_BOLD;
-        }
 
         // 2. Fondo
         ImageView gifBg = findViewById(R.id.background_gif);
@@ -81,7 +75,7 @@ public class RankingGameActivity extends BaseActivity {
 
         ListView lv = findViewById(R.id.ranking_list);
 
-// Adaptador personalizado con mejor diseño y traducción
+        // Adaptador personalizado con mejor diseño y traducción
         ArrayAdapter<RankingEntry> adapter = new ArrayAdapter<RankingEntry>(this, R.layout.item_ranking, rankingData) {
             @NonNull
             @Override
@@ -122,18 +116,6 @@ public class RankingGameActivity extends BaseActivity {
         });
     }
 
-    private void initTranslation() {
-        translationManager.setTargetFromAppLang(currentLang);
-        View root = findViewById(android.R.id.content);
-        translationManager.scanAndRegisterViews(root);
-
-        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
-            translationManager.reloadTextsFromResources();
-        } else {
-            translationManager.translateIfNeeded();
-        }
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -159,6 +141,26 @@ public class RankingGameActivity extends BaseActivity {
         if (translationManager != null) translationManager.unbindActivity();
     }
 
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Configura el sistema de traducción para los títulos y elementos estáticos.
+     */
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
+        }
+    }
+
+    /**
+     * Clase interna para representar una entrada en la clasificación final.
+     */
     private static class RankingEntry {
         String name;
         int kills;

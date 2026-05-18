@@ -30,6 +30,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Gestor centralizado para la traducción dinámica de la interfaz de usuario.
+ * Utiliza ML Kit de Google para traducciones automáticas y el sistema de recursos de Android
+ * para idiomas nativos. Implementa el patrón Singleton.
+ */
 public class TranslationManager {
     private static final String TAG = "DEBUG_TRANSLATION";
     private static TranslationManager instance;
@@ -45,7 +50,15 @@ public class TranslationManager {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean isModelDownloaded = false;
 
+    /**
+     * Interfaz para recibir el resultado de una traducción de texto plano.
+     */
     public interface OnRawTranslationListener {
+        /**
+         * Llamado cuando la traducción se ha completado.
+         *
+         * @param translatedText El texto traducido (o el original si hubo error).
+         */
         void onTranslationComplete(String translatedText);
     }
 
@@ -53,28 +66,58 @@ public class TranslationManager {
         this.appCtx = appContext.getApplicationContext();
     }
 
+    /**
+     * Inicializa la instancia única del gestor.
+     *
+     * @param appContext Contexto de la aplicación.
+     */
     public static synchronized void initialize(@NonNull Context appContext) {
         if (instance == null) instance = new TranslationManager(appContext);
     }
 
+    /**
+     * Obtiene la instancia única del gestor.
+     *
+     * @return La instancia de {@link TranslationManager}.
+     * @throws IllegalStateException si no se ha inicializado previamente.
+     */
     public static synchronized TranslationManager getInstance() {
         if (instance == null) throw new IllegalStateException("TranslationManager not initialized.");
         return instance;
     }
 
-    public void setForcedLanguage(String lang) {
-        this.forcedLanguage = lang;
-    }
-
+    /**
+     * Vincula una actividad al gestor para gestionar su ciclo de vida y contexto.
+     *
+     * @param activity Actividad que se desea vincular.
+     */
     public void bindActivity(@NonNull Activity activity) {
         this.boundActivityRef = new WeakReference<>(activity);
     }
 
+    /**
+     * Desvincula la actividad actual y limpia las vistas registradas para evitar fugas de memoria.
+     */
     public void unbindActivity() {
         if (boundActivityRef != null) boundActivityRef.clear();
         this.registeredViews.clear();
     }
 
+    /**
+     * Establece manualmente un idioma forzado para el gestor.
+     *
+     * @param lang Código de idioma (ej: "es", "en").
+     */
+    public void setForcedLanguage(String lang) {
+        this.forcedLanguage = lang;
+    }
+
+    /**
+     * Registra una serie de vistas para que sus textos sean gestionados por el traductor.
+     * Almacena el texto original en inglés como base para futuras traducciones.
+     *
+     * @param views Vistas a registrar.
+     */
     public synchronized void registerViews(@NonNull View... views) {
         for (View v : views) {
             if (v == null || v.getId() == View.NO_ID) continue;
@@ -97,6 +140,11 @@ public class TranslationManager {
         }
     }
 
+    /**
+     * Escanea jerárquicamente un árbol de vistas y registra automáticamente aquellas que contienen texto.
+     *
+     * @param root Vista raíz desde la cual iniciar el escaneo.
+     */
     public void scanAndRegisterViews(@NonNull View root) {
         Deque<View> q = new ArrayDeque<>();
         q.add(root);
@@ -113,30 +161,12 @@ public class TranslationManager {
         }
     }
 
-    public void reloadTextsFromResources() {
-        String appLang = (forcedLanguage != null) ? forcedLanguage : "en";
-        Activity activity = boundActivityRef != null ? boundActivityRef.get() : null;
-        Context contextForResources = (activity != null) ? activity : appCtx;
-        Context localizedContext = LocaleUtils.applyAppLocale(contextForResources, appLang);
-        Resources res = localizedContext.getResources();
-
-        for (View view : new ArrayList<>(registeredViews)) {
-            try {
-                String resName = appCtx.getResources().getResourceEntryName(view.getId());
-                int resId = res.getIdentifier(resName, "string", appCtx.getPackageName());
-                if (resId != 0) {
-                    postUpdateViewText(view, res.getString(resId));
-                }
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private void postUpdateViewText(View view, String text) {
-        mainHandler.post(() -> {
-            if (view instanceof TextView) ((TextView) view).setText(text);
-        });
-    }
-
+    /**
+     * Configura el idioma de destino basándose en el código de idioma de la aplicación.
+     * Inicia la descarga del modelo de ML Kit si es necesario.
+     *
+     * @param appLangCode Código de idioma (ej: "fr", "de").
+     */
     public void setTargetFromAppLang(@Nullable String appLangCode) {
         setForcedLanguage(appLangCode);
         String mapped = LocaleUtils.mapAppLangToMlKit(appLangCode);
@@ -172,6 +202,10 @@ public class TranslationManager {
                 });
     }
 
+    /**
+     * Inicia el proceso de traducción para todas las vistas registradas si el modelo está listo.
+     * Si no se requiere traducción automática, recarga los textos desde los recursos locales.
+     */
     public void translateIfNeeded() {
         if (targetMlKit == null || translator == null) {
             reloadTextsFromResources();
@@ -185,6 +219,12 @@ public class TranslationManager {
         }
     }
 
+    /**
+     * Traduce una cadena de texto de forma asíncrona.
+     *
+     * @param text     Texto original en inglés.
+     * @param listener Callback para recibir el resultado.
+     */
     public void translateRaw(String text, OnRawTranslationListener listener) {
         // Si el modelo no está listo, devolvemos el texto original de inmediato
         if (targetMlKit == null || translator == null || !isModelDownloaded) {
@@ -200,17 +240,32 @@ public class TranslationManager {
                 });
     }
 
-    // Añade esto al final de TranslationManager.java
-    public void unregisterView(View view) {
-        if (view != null) {
-            registeredViews.remove(view);
-            originalEnglishById.remove(view.getId());
+    /**
+     * Recarga los textos de las vistas registradas utilizando los archivos de recursos (strings.xml)
+     * según el idioma configurado actualmente.
+     */
+    public void reloadTextsFromResources() {
+        String appLang = (forcedLanguage != null) ? forcedLanguage : "en";
+        Activity activity = boundActivityRef != null ? boundActivityRef.get() : null;
+        Context contextForResources = (activity != null) ? activity : appCtx;
+        Context localizedContext = LocaleUtils.applyAppLocale(contextForResources, appLang);
+        Resources res = localizedContext.getResources();
+
+        for (View view : new ArrayList<>(registeredViews)) {
+            try {
+                String resName = appCtx.getResources().getResourceEntryName(view.getId());
+                int resId = res.getIdentifier(resName, "string", appCtx.getPackageName());
+                if (resId != 0) {
+                    postUpdateViewText(view, res.getString(resId));
+                }
+            } catch (Exception ignored) {}
         }
     }
 
     /**
-     * Traduce un texto y lo muestra en un Toast.
-     * Utiliza la Activity vinculada actualmente para asegurar el contexto correcto.
+     * Traduce un texto y lo muestra en un mensaje flotante (Toast).
+     *
+     * @param text Texto a traducir y mostrar.
      */
     public void showTranslatedToast(String text) {
         if (text == null || text.isEmpty()) return;
@@ -224,6 +279,18 @@ public class TranslationManager {
             mainHandler.post(() -> {
                 Toast.makeText(context, translated, Toast.LENGTH_SHORT).show();
             });
+        });
+    }
+
+    /**
+     * Actualiza el texto de una vista en el hilo principal.
+     *
+     * @param view Vista a actualizar.
+     * @param text Nuevo texto traducido.
+     */
+    private void postUpdateViewText(View view, String text) {
+        mainHandler.post(() -> {
+            if (view instanceof TextView) ((TextView) view).setText(text);
         });
     }
 }

@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
@@ -17,6 +15,10 @@ import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 
+/**
+ * Actividad que se muestra cuando el jugador pierde todas sus vidas en una partida.
+ * Presenta una pantalla de derrota y ofrece la opción de volver al menú principal.
+ */
 public class LoseActivity extends BaseActivity {
 
     private TranslationManager translationManager;
@@ -53,18 +55,6 @@ public class LoseActivity extends BaseActivity {
         });
     }
 
-    private void initTranslation() {
-        translationManager.setTargetFromAppLang(currentLang);
-        View root = findViewById(android.R.id.content);
-        translationManager.scanAndRegisterViews(root);
-
-        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
-            translationManager.reloadTextsFromResources();
-        } else {
-            translationManager.translateIfNeeded();
-        }
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -82,6 +72,23 @@ public class LoseActivity extends BaseActivity {
         super.onDestroy();
         if (translationManager != null) {
             translationManager.unbindActivity();
+        }
+    }
+
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Configura el sistema de traducción para los textos de la actividad.
+     */
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
         }
     }
 }

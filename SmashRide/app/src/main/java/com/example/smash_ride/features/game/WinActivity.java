@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.example.smash_ride.R;
 import com.example.smash_ride.core.audio.SoundManager;
 import com.example.smash_ride.core.graphics.GifHardwareDecoder;
@@ -17,6 +15,10 @@ import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.translation.LocaleUtils;
 import com.example.smash_ride.translation.TranslationManager;
 
+/**
+ * Actividad que se muestra cuando el jugador gana una partida en modo vidas.
+ * Presenta una pantalla de celebración y permite regresar al menú principal.
+ */
 public class WinActivity extends BaseActivity {
 
     private TranslationManager translationManager;
@@ -34,14 +36,10 @@ public class WinActivity extends BaseActivity {
 
         // 2. Gestión de Fondo Jerárquico (GIF -> Estático -> Negro)
         ImageView gifBg = findViewById(R.id.background_gif);
-        ImageView staticBg = findViewById(R.id.background_static);
 
         if (gifBg != null) {
             // GifHardwareDecoder ya gestiona poner GONE el gifBg si falla o no es compatible
             GifHardwareDecoder.loadGif(this, gifBg, R.raw.background_stars);
-
-            // Si el GIF carga, ocultamos la imagen estática (opcional, depende de si el GIF tiene transparencia)
-            // Si el GIF falla, el Decoder lo pone en GONE y se verá lo que haya debajo (staticBg)
         }
 
         // 3. Inicializar Traducción
@@ -57,18 +55,6 @@ public class WinActivity extends BaseActivity {
             startActivity(intent);
             finish();
         });
-    }
-
-    private void initTranslation() {
-        translationManager.setTargetFromAppLang(currentLang);
-        View root = findViewById(android.R.id.content);
-        translationManager.scanAndRegisterViews(root);
-
-        if (currentLang.equals("es") || currentLang.equals("eu") || currentLang.equals("en")) {
-            translationManager.reloadTextsFromResources();
-        } else {
-            translationManager.translateIfNeeded();
-        }
     }
 
     @Override
@@ -88,6 +74,23 @@ public class WinActivity extends BaseActivity {
         super.onDestroy();
         if (translationManager != null) {
             translationManager.unbindActivity();
+        }
+    }
+
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Configura el sistema de traducción para los textos de la actividad.
+     */
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
         }
     }
 }

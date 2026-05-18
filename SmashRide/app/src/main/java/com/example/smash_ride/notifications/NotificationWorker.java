@@ -19,19 +19,36 @@ import com.example.smash_ride.features.main.MainActivity;
 import com.example.smash_ride.MyApplication;
 import com.example.smash_ride.R;
 
+/**
+ * Trabajador de segundo plano que gestiona la creación y el envío de notificaciones
+ * de recordatorio al usuario. Extiende {@link Worker} para su uso con WorkManager.
+ */
 public class NotificationWorker extends Worker {
     private static final int NOTIF_ID = 1001;
     private static final String TAG = "NotificationWorker";
 
+    /**
+     * Constructor del trabajador.
+     *
+     * @param context Contexto de la aplicación.
+     * @param params  Parámetros de ejecución del trabajador.
+     */
     public NotificationWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
     }
 
+    /**
+     * Ejecuta la tarea del trabajador: crea un Intent para abrir la aplicación,
+     * construye la notificación y la envía si se tienen los permisos necesarios.
+     *
+     * @return El resultado de la operación (siempre {@link Result#success()} en este caso).
+     */
     @NonNull
     @Override
     public Result doWork() {
         Context context = getApplicationContext();
 
+        // Crear el intent para abrir la actividad principal al pulsar la notificación
         Intent intent = new Intent(context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
@@ -52,6 +69,7 @@ public class NotificationWorker extends Worker {
             );
         }
 
+        // Construcción de la notificación
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, MyApplication.CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher) // usa ic_launcher o tu drawable
                 .setContentTitle("Te echamos de menos")
