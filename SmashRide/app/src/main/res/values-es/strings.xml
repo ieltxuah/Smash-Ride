@@ -6,8 +6,8 @@
     <string name="settings_button">Ajustes</string>
     <string name="ranking_button">Clasificación</string>
     <string name="select_mode">Seleccionar modo</string>
-    <string name="mode_lives">Corazón (Vidas)</string>
-    <string name="mode_timer">Temporizador (Tiempo)</string>
+    <string name="mode_lives">Modo Vidas (5 vidas)</string>
+    <string name="mode_timer">Modo Contrarreloj (3 minutos)</string>
     <string name="settings_title_language">Idioma</string>
     <string name="settings_label_music">Música de Fondo</string>
     <string name="settings_label_effects">Efectos de Sonido</string>
