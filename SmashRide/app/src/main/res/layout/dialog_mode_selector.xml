@@ -23,7 +23,10 @@
             android:layout_height="80dp"
             android:src="@drawable/ic_heart" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        <TextView
+            android:id="@+id/mode_lives"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="@string/mode_lives" android:textStyle="bold"
             android:fontFamily="@font/kirby_classic"
             android:layout_marginTop="8dp"/>
@@ -45,7 +48,9 @@
             android:layout_height="80dp"
             android:src="@drawable/ic_clock" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        <TextView
+            android:id="@+id/mode_timer"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="@string/mode_timer" android:textStyle="bold"
             android:fontFamily="@font/kirby_classic"
             android:layout_marginTop="8dp"/>

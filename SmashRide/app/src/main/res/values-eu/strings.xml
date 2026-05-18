@@ -6,8 +6,8 @@
     <string name="settings_button">Ezarpenak</string>
     <string name="ranking_button">Sailkapena</string>
     <string name="select_mode">Modua hautatu</string>
-    <string name="mode_lives">Bihotza (Bizitzak)</string>
-    <string name="mode_timer">Denbora (Denbora)</string>
+    <string name="mode_lives">Bizitzen Modua (5 bizitza)</string>
+    <string name="mode_timer">Tenporizadore Modua (3 minutu)</string>
     <string name="settings_title_language">Hizkuntza</string>
     <string name="settings_label_music">Istripu Musika</string>
     <string name="settings_label_effects">Soinu Efektuak</string>

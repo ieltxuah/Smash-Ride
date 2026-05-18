@@ -5,8 +5,8 @@
     <string name="settings_button">Settings</string>
     <string name="ranking_button">Ranking</string>
     <string name="select_mode">Select mode</string>
-    <string name="mode_lives">Heart (Lives)</string>
-    <string name="mode_timer">Timer (Time)</string>
+    <string name="mode_lives">Lives Mode (5 lives)</string>
+    <string name="mode_timer">Timer Mode (3 minutes)</string>
     <string name="settings_title_language">Language</string>
     <string name="settings_label_music">Background Music</string>
     <string name="settings_label_effects">Sound Effects</string>

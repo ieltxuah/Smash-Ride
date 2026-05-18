@@ -1,0 +1,96 @@
+package com.example.smash_ride.presentation.game;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+
+import com.example.smash_ride.R;
+import com.example.smash_ride.core.audio.SoundManager;
+import com.example.smash_ride.core.graphics.GifHardwareDecoder;
+import com.example.smash_ride.core.ui.BaseActivity;
+import com.example.smash_ride.data.local.PreferenceHelper;
+import com.example.smash_ride.presentation.main.MainActivity;
+import com.example.smash_ride.framework.translation.LocaleUtils;
+import com.example.smash_ride.framework.translation.TranslationManager;
+
+/**
+ * Actividad que se muestra cuando el jugador gana una partida en modo vidas.
+ * Presenta una pantalla de celebración y permite regresar al menú principal.
+ */
+public class WinActivity extends BaseActivity {
+
+    private TranslationManager translationManager;
+    private String currentLang;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // 1. Cargar idioma antes de inflar la vista
+        PreferenceHelper prefHelper = new PreferenceHelper(this);
+        currentLang = prefHelper.getLanguage();
+        LocaleUtils.applyAppLocale(this, currentLang);
+
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_win);
+
+        // 2. Gestión de Fondo Jerárquico (GIF -> Estático -> Negro)
+        ImageView gifBg = findViewById(R.id.background_gif);
+
+        if (gifBg != null) {
+            // GifHardwareDecoder ya gestiona poner GONE el gifBg si falla o no es compatible
+            GifHardwareDecoder.loadGif(this, gifBg, R.raw.background_stars);
+        }
+
+        // 3. Inicializar Traducción
+        translationManager = TranslationManager.getInstance();
+        translationManager.bindActivity(this);
+        initTranslation();
+
+        // 4. Configurar Botón
+        Button back = findViewById(R.id.back_menu);
+        back.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish();
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SoundManager.getInstance().resumeMusic();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SoundManager.getInstance().pauseMusic();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (translationManager != null) {
+            translationManager.unbindActivity();
+        }
+    }
+
+    // --- MÉTODOS DE INICIALIZACIÓN ---
+
+    /**
+     * Configura el sistema de traducción para los textos de la actividad.
+     */
+    private void initTranslation() {
+        translationManager.setTargetFromAppLang(currentLang);
+        View root = findViewById(android.R.id.content);
+        translationManager.scanAndRegisterViews(root);
+
+        if (LocaleUtils.isNativeLanguage(currentLang)) {
+            translationManager.reloadTextsFromResources();
+        } else {
+            translationManager.translateIfNeeded();
+        }
+    }
+}
